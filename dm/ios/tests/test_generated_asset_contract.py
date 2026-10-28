@@ -165,18 +165,18 @@ class ModeCache(unittest.TestCase):
             self.assertFalse(gen_assets.ensure(str(self.romfs), overlay_only=True))
         self.assertEqual(self.calls, [True])
 
-    def test_each_mode_switch_regenerates_but_same_mode_reuses_cache(self):
+    def test_full_cache_satisfies_overlay_but_overlay_does_not_satisfy_full(self):
         with mock.patch.object(gen_assets, 'run_steps', side_effect=self.fake_generate):
-            self.assertTrue(gen_assets.ensure(str(self.romfs)))
-            self.assertFalse(gen_assets.ensure(str(self.romfs)))
-            full_stamp = (self.output / '.stamp').read_text()
             self.assertTrue(gen_assets.ensure(str(self.romfs), overlay_only=True))
             overlay_stamp = (self.output / '.stamp').read_text()
-            self.assertNotEqual(full_stamp, overlay_stamp)
             self.assertFalse(gen_assets.ensure(str(self.romfs), overlay_only=True))
             self.assertTrue(gen_assets.ensure(str(self.romfs)))
+            full_stamp = (self.output / '.stamp').read_text()
+            self.assertNotEqual(full_stamp, overlay_stamp)
+            self.assertFalse(gen_assets.ensure(str(self.romfs), overlay_only=True))
+            self.assertEqual((self.output / '.stamp').read_text(), full_stamp)
             self.assertFalse(gen_assets.ensure(str(self.romfs)))
-        self.assertEqual(self.calls, [False, True, False])
+        self.assertEqual(self.calls, [True, False])
 
     def test_missing_full_silhouette_invalidates_full_cache(self):
         with mock.patch.object(gen_assets, 'run_steps', side_effect=self.fake_generate):

@@ -216,6 +216,9 @@ int main(void) {
       LANGCASE(4, "{ \"Language\": 5, \"VoiceLanguage\": 5 }", "{ \"Language\": 5, \"VoiceLanguage\": 5 }", "开关 = 韩语、文件已是韩文配韩语语音：不动");
       LANGCASE(3, "{ \"Language\": 5, \"VoiceLanguage\": 5 }", "{ \"Language\": 7, \"VoiceLanguage\": 7 }", "开关 = 俄语、文件是韩文：文字与语音都改成 ruRU");
       LANGCASE(1, "{ \"Language\": 5, \"VoiceLanguage\": 5 }", "{ \"Language\": 0, \"VoiceLanguage\": 0 }", "开关 = 英文、文件是韩文：文字与语音都改英文");
+      LANGCASE(5, "{ \"Language\": 0, \"VoiceLanguage\": 0 }", "{ \"Language\": 3, \"VoiceLanguage\": 0 }", "法语 / French text with English voice");
+      LANGCASE(5, "{ \"Language\": 3, \"VoiceLanguage\": 0 }", "{ \"Language\": 3, \"VoiceLanguage\": 0 }", "French selection persists");
+      LANGCASE(1, "{ \"Language\": 3, \"VoiceLanguage\": 0 }", "{ \"Language\": 0, \"VoiceLanguage\": 0 }", "Switch French back to English");
       VOICECASE(0, 1, "{ \"Language\": 8, \"VoiceLanguage\": 8 }", "{ \"Language\": 8, \"VoiceLanguage\": 0 }", "中文文字 + English 配音，只改 VoiceLanguage");
       VOICECASE(0, 0, "{ \"Language\": 8, \"VoiceLanguage\": 0 }", "{ \"Language\": 8, \"VoiceLanguage\": 8 }", "中文文字 + 中文配音，只改 VoiceLanguage");
       VOICECASE(-1, 1, "{ \"Language\": 9, \"VoiceLanguage\": 9 }", "{ \"Language\": 9, \"VoiceLanguage\": 0 }", "没动语言行，只把繁中配音改成 English，文字保持繁中");

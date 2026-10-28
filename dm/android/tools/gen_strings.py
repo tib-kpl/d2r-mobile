@@ -16,7 +16,7 @@ def generate(output):
     shared = {"dmInputTitle", "dmNameTitle", "dmNameRule", "dmQtyTitle", "dmNameBlankRandom",
               "dmNamePickIme", "dmNameTooShort", "dmNameEdge", "dmCancel", "dmConfirm", "dmTcCancel", "dmHudLife", "dmHudMana"}
     rows = [r for r in table.rows() if r[0].startswith("dmAndroid") or r[0] in shared]
-    for folder, column in (("values", 2), ("values-zh", 1)):
+    for folder, column in (("values", 2), ("values-zh", 1), ("values-fr", 7)):
         lines = ['<?xml version="1.0" encoding="utf-8"?>', '<resources>']
         for row in rows:
             value = escape(row[column]).replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", "\\n")

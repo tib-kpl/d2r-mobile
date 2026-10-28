@@ -309,7 +309,7 @@ static int vu_has(const char *name, const char *q) {
 // 搜索：名字包含搜索字（游戏此刻显示的名字：开了旧译名就是旧译名）的暗金与套装件，跨部位；存着 → 收录过 → 没遇到过，同状态按表里的次序。放在暗金那张 3×6 格里，套装件名字绿色
 // Search: unique and set items whose name contains the search text (the name the game currently displays: with legacy translations on, that is the legacy name), across slots; stored → recorded → never encountered, and within the same state in table order. Placed in the unique 3×6 grid, with set item names in green
 static void vu_search(uint8_t *b, uint64_t vt) {
-    static int list[VT_NROW]; int n = 0, nu = 0, ns = 0;
+    static int list[sizeof vt_rows / sizeof vt_rows[0]]; int n = 0, nu = 0, ns = 0;
     for (int st = ST_STORED; st >= ST_NONE; st--) for (int i = 0; i < VT_NROW; i++) { const vt_row *r = &vt_rows[i]; if (vu_state(b, r) != st || !vu_has(vu_name(b, r->key), g_query)) continue; list[n++] = i; if (r->kind) nu++; else ns++; }
     int pages = n ? (n + VPER - 1) / VPER : 1; if (g_page_q >= pages) g_page_q = pages - 1; if (g_page_q < 0) g_page_q = 0;
     char buf[160]; snprintf(buf, sizeof buf, dm_str(b, "dmVaultSearch"), g_query, n, nu, ns); vu_text(b, vu_find(vt, "TouchV_Stats", 0), buf);

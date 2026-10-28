@@ -251,6 +251,20 @@ def build_sidecar(romfs):
                 cur = json.loads(m.group(1))
                 if hashlib.sha1(cur.encode('utf-8')).hexdigest()[:8] != old: raise SystemExit('touch_strings：%s 的 %s 原文变了（校验 %s，现行「%s」）——原包换了版本，核过再改表' % (key, lang, old, cur))
                 if (key, old, new) not in out: out.append((key, old, new))   # esES / esMX 原文相同、新文也相同的只留一行 | Keep only one row when esES / esMX have the same original and the same new text
+    # 法语触摸文字来自公开翻译表；原文校验从用户自己的资源计算，不分发原文。
+    # French touch wording comes from the public translation table; checksum the user's original without distributing it.
+    import csv
+    from pathlib import Path
+    with (Path(__file__).resolve().parents[2] / 'i18n/touch_fr.tsv').open(encoding='utf-8') as f:
+        french = {r['key']: r['Français'] for r in csv.DictReader(f, delimiter='\t')}
+    for name, items in TABLE.items():
+        _, text = touch_layout.read_layout(romfs, None, suffix='/lng/strings/' + name)
+        entries = {entry['Key']: entry for entry in json.loads(text.lstrip('\ufeff'))}
+        for key in items:
+            if key in FILE_ONLY or (key.startswith('MoviePlaybackHoldToSkip') and os.environ.get('MOVIE_FFMPEG') == '1'): continue
+            if key not in french: raise SystemExit('Missing French touch translation: ' + key)
+            cur = entries[key]['frFR']
+            out.append((key, hashlib.sha1(cur.encode('utf-8')).hexdigest()[:8], french[key]))
     return out
 
 def build(romfs, outdir):

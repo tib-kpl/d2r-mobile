@@ -4,7 +4,7 @@
 
 This is not a tech demo that "sort of runs". It is a mobile version polished for daily play, from your first character all the way through the endgame.
 
-Platforms: iPhone / iPad (iOS 26 and later; iOS 18 – 25 with the older-API build) · Mac (Apple silicon, macOS 26 or later; macOS 15 – 25 with the older-API build) · Apple TV 4K (3rd generation, A15; community port, developer preview) · Android phones (ARM64, Android 12 or later, Vulkan 1.1; community port) · HarmonyOS phones (HarmonyOS NEXT; community port, unsigned shell from the Releases page that you re-sign yourself) · Game version: Switch release with Reign of the Warlock, 1.0.34.0 (corresponds to PC version 3.3.94012) · English / 中文 / Español / Русский / 한국어 · License: MIT · **Bring your own game files**
+Platforms: iPhone / iPad (iOS 26 and later; iOS 18 – 25 with the older-API build) · Mac (Apple silicon, macOS 26 or later; macOS 15 – 25 with the older-API build) · Apple TV 4K (3rd generation, A15; community port, developer preview) · Android phones (ARM64, Android 12 or later, Vulkan 1.1; community port) · HarmonyOS phones (HarmonyOS NEXT; community port, unsigned shell from the Releases page that you re-sign yourself) · Game version: Switch release with Reign of the Warlock, 1.0.34.0 (corresponds to PC version 3.3.94012) · English / 中文 / Español / Русский / 한국어 / Français · License: MIT · **Bring your own game files**
 
 中文: [README.zh-CN.md](README.zh-CN.md) · Español: [README.es.md](README.es.md)
 
@@ -26,7 +26,7 @@ Platforms: iPhone / iPad (iOS 26 and later; iOS 18 – 25 with the older-API bui
 
 - The game's own aarch64 program, **executing directly on the device**, with no emulated CPU. iPhone and Switch use the same class of processor; only the handful of instructions that cannot run unchanged under Apple's kernel are rewritten, and every other byte of the program is left exactly as shipped. Every class, every Runeword, Terror Zones, bosses, drop rules and quest flow are identical to the original.
 - The platform services the game expects — system calls, the file system, the graphics API, audio, input — provided by a small host written for Apple platforms. The graphics API is reimplemented entirely — on Metal on Apple devices, on Vulkan on Android — with no emulation layer in between, and the shaders are translated offline from the game's originals.
-- A port built for phones, and taken all the way: a complete touch control scheme, edge-to-edge iPhone and true full-screen iPad display, controller support, a power saver mode, save sync, five languages (English, Chinese, Spanish, Russian and Korean), and a whole set of endgame modes and quality-of-life features the original never had.
+- A port built for phones, and taken all the way: a complete touch control scheme, edge-to-edge iPhone and true full-screen iPad display, controller support, a power saver mode, save sync, six languages (English, Chinese, Spanish, Russian, Korean and French), and a whole set of endgame modes and quality-of-life features the original never had.
 
 **It is not:**
 
@@ -161,7 +161,7 @@ Most features can be toggled one by one in game under Options → Custom.
 
 ### English, Chinese, Spanish, Russian and Korean
 
-The whole game switches between English, Chinese, Spanish, Russian and Korean under Options → Custom; after a restart, the interface is in the language you chose. On first launch it follows your device language (Spanish from Spain uses the game's esES text, other Spanish regions use the Latin American esMX text). In English, Spanish, Russian and Korean, items, skills and monsters use the original Diablo II wording, and everything we added — Greater Rift, Chronicle, the settings page, gesture prompts, map name plates — is translated too (item notes are translated for Chinese and Spanish only). Russian is the game's single ruRU text and Korean its koKR text, with no regional variants. Voice acting: Chinese UI gets Chinese voices; Russian and Korean get the original Russian or Korean voices when your game files include them (a package built from the complete game data does), otherwise English; everything else is English. Korean was contributed by [@soulsakura](https://github.com/soulsakura) ([#118](https://github.com/jhaizhou-ops/d2r-mobile/pull/118)).
+The whole game switches between English, Chinese, Spanish, Russian, Korean and French under Options → Custom; after a restart, the interface is in the language you chose. On first launch it follows your device language (Spanish from Spain uses the game's esES text, other Spanish regions use the Latin American esMX text). In English, Spanish, Russian and Korean, items, skills and monsters use the original Diablo II wording, and everything we added — Greater Rift, Chronicle, the settings page, gesture prompts, map name plates — is translated too (item notes are translated for Chinese and Spanish only). Russian is the game's single ruRU text and Korean its koKR text, with no regional variants. Voice acting: Chinese UI gets Chinese voices; Russian and Korean get the original Russian or Korean voices when your game files include them (a package built from the complete game data does), otherwise English; everything else is English. Korean was contributed by [@soulsakura](https://github.com/soulsakura) ([#118](https://github.com/jhaizhou-ops/d2r-mobile/pull/118)).
 
 <p align="center">
   <img src="https://github.com/jhaizhou-ops/d2r-mobile/releases/download/assets/en_game.jpg" width="58%" alt="Gameplay with the English interface">
@@ -344,6 +344,8 @@ The source must be from the same release as the shell. For a new release, re-sig
 ### Without a Mac: the shell plus the packaging tool
 
 Download our prebuilt "shell" package (`D2RMobile-shell-build-input.zip`; `D2RMobile-shell-ios18-build-input.zip` for iOS 18 – 25), which contains no game content, from this repository's [Releases page](https://github.com/jhaizhou-ops/d2r-mobile/releases), add your own game files, make the install package on Windows or Linux, then sign and install it with a sideloading tool. The shell is build input, not an app to install (installed as is, it only shows a dialog and does not start the game); when you move to a new release, make the install package again with the new shell. On this route only, because the computer making the package has no Apple shader compiler, the **first launch** on the phone spends about 7 minutes compiling shaders (once, with a progress bar); a package built with Xcode has no such step. The steps, and how far each one has been verified, are in [docs/NO_XCODE.md](docs/NO_XCODE.md).
+
+French installation instructions and automatic Android releases for this fork: [docs/ANDROID.fr.md](docs/ANDROID.fr.md). French text is supported; voice-over remains English.
 
 ## Known limitations
 

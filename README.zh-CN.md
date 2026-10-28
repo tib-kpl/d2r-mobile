@@ -428,3 +428,5 @@ DM_MAC_M3=1 dm/tools/mac_app.sh      # macOS 15 – 25：产出 D2R Mobile M3.ap
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。第三方代码各自的许可证在其目录内，见 [docs/DEPENDENCIES.zh-CN.md](docs/DEPENDENCIES.zh-CN.md)。
+
+本分支支持法语文字（配音仍为英语），并在每次分支 push 成功后自动发布签名 Android 预发布版。法语安装与 CI 配置：[docs/ANDROID.fr.md](docs/ANDROID.fr.md)。

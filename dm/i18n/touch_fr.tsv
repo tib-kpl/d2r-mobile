@@ -1,0 +1,26 @@
+key	Français
+UseItemController	Touchez deux fois pour utiliser
+OpenHoradricCubeController	Touchez deux fois pour ouvrir
+ReadScrollController	Touchez deux fois pour lire
+UsePotionOfLifeController	Touchez deux fois pour ajouter 20 points de vie définitivement
+UseBookOfSkillController	Touchez deux fois pour apprendre une compétence
+UseScrollOfResistanceController	Touchez deux fois pour lancer
+UseTokenOfAbsolutionController	Touchez deux fois pour réinitialiser les caractéristiques et compétences
+UseTerrorTokenAct1Controller	Touchez deux fois pour terroriser l'acte I
+UseTerrorTokenAct2Controller	Touchez deux fois pour terroriser l'acte II
+UseTerrorTokenAct3Controller	Touchez deux fois pour terroriser l'acte III
+UseTerrorTokenAct4Controller	Touchez deux fois pour terroriser l'acte IV
+UseTerrorTokenAct5Controller	Touchez deux fois pour terroriser l'acte V
+comparisonTooltipController	
+hireComparisonTooltipController	
+StrYouDiedConsole	Vous avez succombé
+ControllerInteractButton	
+ControllerTitleScreenPrompt	Touchez l'écran pour commencer
+EnterCharacterName	
+ControllerCycleComparisonTooltips	Touchez à nouveau pour comparer avec l'autre objet
+SelectButtonNoteText	
+MoviePlaybackHoldToSkip_switch	
+LevelUpStatsNotificationController	Vous gagnez un niveau.
+LevelUpNotificationController	Vous gagnez un niveau.
+QuestLogNotificationController	Quête mise à jour.
+MoviePlaybackHoldToSkip	

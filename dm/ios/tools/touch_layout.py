@@ -1206,7 +1206,7 @@ _CUSTOM_TEST_ROWS = int(os.environ.get('DM_CUSTOM_TEST_ROWS', '0'))   # 测试�
 # 「3D 画质」（q3d）是单选的两项、每项下面一行说明小字，占两行高（_CUSTOM_Q3D_H）；其余各行一行高
 # "3D Quality" (q3d) is a radio with two options, each with a line of small description text below, taking two rows of height (_CUSTOM_Q3D_H); every other row is one row high
 _CUSTOM_Q3D_H = 2 * _CUSTOM_LINE_H
-_CUSTOM_ROW_H = [(3 * _CUSTOM_LINE_H if k == 'cam' else _CUSTOM_Q3D_H if k in ('voice', 'q3d', 'touch_swap_above') else _CUSTOM_LINE_H) for k, _ in _CUSTOM_ALL] + [_CUSTOM_LINE_H] * _CUSTOM_TEST_ROWS
+_CUSTOM_ROW_H = [(_CUSTOM_LINE_H + 112 if k == 'lang' else 3 * _CUSTOM_LINE_H if k == 'cam' else _CUSTOM_Q3D_H if k in ('voice', 'q3d', 'touch_swap_above') else _CUSTOM_LINE_H) for k, _ in _CUSTOM_ALL] + [_CUSTOM_LINE_H] * _CUSTOM_TEST_ROWS
 _CUSTOM_Y = [_CUSTOM_TITLE_H + sum(_CUSTOM_ROW_H[:i]) for i in range(len(_CUSTOM_ROW_H))]
 _CUSTOM_H = _CUSTOM_TITLE_H + sum(_CUSTOM_ROW_H)
 def _custom_toggle_row(i, key, label):
@@ -1222,28 +1222,28 @@ def _custom_toggle_row(i, key, label):
 # 语言开关（第一行，普通行）：五项单选「中文 / English / Español / Русский / 한국어」，下次启动生效（宿主 dm_custom.c 的 lang、hle_fs.c settings_lang_apply）。
 # 「重启游戏后生效」那句先放在屏外，勾选与当前语言不一致时宿主挪到这一行文字的下半（横坐标取标签的）
 _CUSTOM_LANG_HINT = ''.join('        { "type": "TextBoxWidget", "name": "TouchCustomLangHint%s", "fields": { "rect": { "x": 99999, "y": %d, "width": 1400, "height": 60 }, "text": "@dmCustomLangHint%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n'
-                            % (n, _CUSTOM_Y[0] + 112, n) for n in ('Zh', 'En', 'Es', 'Ru', 'Ko'))   # 五句各一个控件，宿主按选中的语言摆其中一句
+                            % (n, _CUSTOM_Y[0] + 224, n) for n in ('Zh', 'En', 'Es', 'Ru', 'Ko', 'Fr'))   # 五句各一个控件，宿主按选中的语言摆其中一句
 # 语言那一行是并排的五个选项「中文 / English / Español / Русский / 한국어」（单选：宿主 dm_custom.c 让五个勾选框互斥，存的是 lang 一个键）。
 # 这一行的字各界面都要写汉字和韩文：别的界面缺省的 Formal 字体没有这些字形（缺字画不出），所以这几个文字控件指定原版的全球字体 BlizzardGlobal
 # （原版标题页、队伍名等同样按控件指定它）。五项放不下左边的「语言」标签字（俄语界面真包截图量：English / Español / Русский 实宽约 166 / 178 / 188，
 # 文字框要比实宽多约 30 才不折行），所以这一行不写标签字，五个选项自己说明是选语言。每项勾选框在前、字在后：文字框比字宽出来的那一截落在两项之间当间隔，
 # 勾选框紧挨着自己的字（字在前时那一截落在字与自己的勾选框之间，勾选框看着像下一项的，真包截图）。
 # 标签控件 TouchCustom_lang_Text 仍在、不写字、横跨整行：宿主拿它定提示那句的横坐标、手柄选中框按它与最后一个勾选框取并框住整行
-_LANG_OPTS = (('Zh', 'zh', 'dmCustomLangZh', 38, 131), ('En', 'en', 'dmCustomLangEnOpt', 249, 196), ('Es', 'es', 'dmCustomLangEsOpt', 525, 213),
-              ('Ru', 'ru', 'dmCustomLangRuOpt', 818, 221), ('Ko', 'ko', 'dmCustomLangKoOpt', 1119, 166))   # （控件名后缀，勾选框后缀，文字键，勾选框 x，文字框宽）；字在勾选框右边 10，宽 = 实宽 + 30
+_LANG_OPTS = (('Zh', 'zh', 'dmCustomLangZh', 38, 131), ('En', 'en', 'dmCustomLangEnOpt', 460, 196), ('Es', 'es', 'dmCustomLangEsOpt', 900, 213),
+              ('Ru', 'ru', 'dmCustomLangRuOpt', 38, 221), ('Ko', 'ko', 'dmCustomLangKoOpt', 460, 166), ('Fr', 'fr', 'dmCustomLangFrOpt', 900, 260))   # （控件名后缀，勾选框后缀，文字键，勾选框 x，文字框宽）；字在勾选框右边 10，宽 = 实宽 + 30
 _LANG_ROW_W = 1385   # 到各行勾选框那一列的右沿（x 1315 + 70）
 def _custom_lang_row():
     y, h = _CUSTOM_Y[0], 112; cy = y + (h - 70) // 2   # 标签、两个选项排在这一行的上 112，下面 68 留给提示那一句 | The label and the two options go in the top 112 of this row; the bottom 68 is left for the hint sentence
-    def text(name, x, w, key): return ('        { "type": "TextBoxWidget", "name": "%s", "fields": { "rect": { "x": %d, "y": %d, "width": %d, "height": %d }, "text": "@%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n' % (name, x, y, w, h, key))
-    def box(name, x): return ('        { "type": "ToggleButtonWidget", "name": "%s", "fields": {\n'
+    def text(name, x, w, key, row): return ('        { "type": "TextBoxWidget", "name": "%s", "fields": { "rect": { "x": %d, "y": %d, "width": %d, "height": %d }, "text": "@%s", "style": "$StyleSettingsText", "style/fontFace": "BlizzardGlobal" } },\n' % (name, x, y + row * 112, w, h, key))
+    def box(name, x, row): return ('        { "type": "ToggleButtonWidget", "name": "%s", "fields": {\n'
             '            "rect": { "x": %d, "y": %d, "width": 70, "height": 70 }, "sound": "cursor_menu_select_hd",\n'
             '            "focusIndicatorPadding": "$OptionsToggleFocusIndicatorPadding", "focusIndicatorFilename": "$OptionsToggleFocusIndicatorFilename", "focusIndicatorOffset": { "x": 0, "y": -4 },\n'
             '            "filename": "Lobby\\\\CreateGame\\\\CreateGame_AdvancedCheckbox",\n'
             '            "untoggledFrame": 0, "untoggledPressedFrame": 1, "untoggledHoveredFrame": 3, "untoggledDisabledFrame": 2,\n'
             '            "toggledFrame": 4, "toggledPressedFrame": 5, "toggledHoveredFrame": 6,\n'
-            '            "onClickMessage": "PanelManager:ClosePanel:%s" } },\n') % (name, x, cy, name)
-    label = ('        { "type": "TextBoxWidget", "name": "TouchCustom_lang_Text", "fields": { "rect": { "x": 0, "y": %d, "width": %d, "height": %d }, "text": "", "style": "$StyleSettingsText" } },\n' % (y, _LANG_ROW_W, h))
-    return label + ''.join(box('TouchCustom_lang_' + b, bx) + text('TouchCustomLang%s_Text' % n, bx + 80, w, k) for n, b, k, bx, w in _LANG_OPTS)   # 空字标签（见上）
+            '            "onClickMessage": "PanelManager:ClosePanel:%s" } },\n') % (name, x, cy + row * 112, name)
+    label = ('        { "type": "TextBoxWidget", "name": "TouchCustom_lang_Text", "fields": { "rect": { "x": 0, "y": %d, "width": %d, "height": %d }, "text": "", "style": "$StyleSettingsText" } },\n' % (y, _LANG_ROW_W, 224))
+    return label + ''.join(box('TouchCustom_lang_' + b, bx, index // 3) + text('TouchCustomLang%s_Text' % n, bx + 80, w, k, index // 3) for index, (n, b, k, bx, w) in enumerate(_LANG_OPTS))   # 空字标签（见上）
 # 「3D 画质」（流畅优先（缺省，掉帧自动降 3D 比例）/ 画质优先（不自动降））：上下两项单选，每项标题下一行说明小字。
 # 存的是一个键 q3d（1 = 画质优先）：「画质优先」的勾选框叫 TouchCustom_q3d、「流畅优先」的叫 TouchCustom_q3d_smooth（它的反面），宿主 dm_custom.c 让两框互斥（同语言行）。
 # TouchCustom_q3d_Text 是空字、高度盖住两项的框：手柄选中框按「文字框与勾选框的上下沿取并」框住整行（dm_custom.c），所以用它把两项一起框进去

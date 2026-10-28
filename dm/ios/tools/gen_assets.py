@@ -35,6 +35,9 @@ def python_command(script, *arguments):
 def stamp(R, overlay_only=False):
     h = hashlib.sha256(open(os.path.join(R, 'data', 'build_manifest.psv'), 'rb').read())
     h.update(b'\0overlay-only\0' if overlay_only else b'\0full-assets\0')
+    # 多语表变化时重建字形与名牌。 | Rebuild glyphs and labels when the translation tables change.
+    for name in ('ui_text.tsv', 'touch_fr.tsv'):
+        with open(os.path.join(HERE, '..', '..', 'i18n', name), 'rb') as f: h.update(f.read())
     # 逐层就地剪掉 __pycache__ 并排序（不能写 sorted(os.walk(...))：那会先走完整棵树，剪枝失效，生成步骤第一次跑时新写的 .pyc 就会改掉指纹，
     # 下一次 ensure 把刚出的产物当成过期再出一遍）。
     # Prune __pycache__ and sort in place level by level (not sorted(os.walk(...)): that walks the whole tree first, so the pruning has no

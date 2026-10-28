@@ -30,9 +30,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#if __has_include("dm_shell_bright.h")
+#include "dm_shell_bright.h"
+#else
 static const struct { uint16_t lv; uint8_t act, drlg; int8_t varies; } k_lv[] = {
 #include "dm_bright_levels.inc"
 };
+#define k_lv_count (sizeof k_lv / sizeof *k_lv)
+#endif
 
 static int rd(uint64_t a, void *buf, size_t n) { vm_size_t got = 0; return a && !vm_read_overwrite(mach_task_self(), a, n, (vm_address_t)buf, &got) && got == n; }
 static uint64_t main_base(void) { static uint64_t b; if (!b) for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) b = (uint64_t)g_mod[i].base; return b; }
@@ -45,7 +50,7 @@ static double target_logk(int *why, int *area, int *I, double *ang) {
     if (!dm_uiscreen_ingame()) { *why = 1; return 0; }
     dm_hud_info h; dm_hud_get(&h); *area = h.valid ? h.area : -1;
     int act = -1, drlg = -1, varies = -1;
-    for (unsigned i = 0; i < sizeof k_lv / sizeof *k_lv; i++) if (k_lv[i].lv == *area) { act = k_lv[i].act; drlg = k_lv[i].drlg; varies = k_lv[i].varies; break; }
+    for (unsigned i = 0; i < k_lv_count; i++) if (k_lv[i].lv == *area) { act = k_lv[i].act; drlg = k_lv[i].drlg; varies = k_lv[i].varies; break; }
     uint64_t env = env_ptr(); int32_t iv = -1, flag = 0, rate = 0; float t = 0;
     if (env && rd(env + 0xc, &iv, 4) && rd(env + 0x34, &flag, 4) && rd(env + 0x2c, &rate, 4) && rd(env + 0x8, &t, 4)) { *I = iv; if (rate > 0) *ang = t / rate; }
     if (drlg == 1) { *why = 2; return log(4.0); }

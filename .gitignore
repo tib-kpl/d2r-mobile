@@ -3,6 +3,7 @@
 .iosdd_mac/
 .iosdd_*/
 .DS_Store
+.build-ci/
 # 安卓构建产物与本机配置 | Android build outputs and local configuration
 dm/android/local.properties
 dm/android/.gradle/

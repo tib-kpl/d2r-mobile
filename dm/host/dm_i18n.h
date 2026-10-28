@@ -5,7 +5,7 @@
 extern _Atomic int g_dm_lang;                         // 原版当前语言号（0 enUS 1 deDE 2 esES 3 frFR 4 itIT 5 koKR 6 plPL 7 ruRU 8 zhCN 9 zhTW 10 esMX 11 jaJP 12 ptBR），SetLanguage 观测门写（diag.c）；-1 = 游戏还没设过 | Original current language number (0 enUS 1 deDE 2 esES 3 frFR 4 itIT 5 koKR 6 plPL 7 ruRU 8 zhCN 9 zhTW 10 esMX 11 jaJP 12 ptBR), written by the SetLanguage observation gate (diag.c); -1 = the game hasn't set it yet
 int dm_lang_index(void);                              // 当前原版语言号（游戏设过 > 设置文件 > 首次安装按系统语言） | current language index of the original game (set by the game > settings file > system language on first install)
 int dm_lang_zh(void);                                 // 1 = 我们的字用中文（zhCN、zhTW） | 1 = our text uses Chinese (zhCN, zhTW)
-enum { DM_LG_EN, DM_LG_ZH, DM_LG_ES, DM_LG_MX, DM_LG_RU, DM_LG_KO };
+enum { DM_LG_EN, DM_LG_ZH, DM_LG_ES, DM_LG_MX, DM_LG_RU, DM_LG_KO, DM_LG_FR };
 int dm_lang_group(void);                              // 我们的字用哪一套：中文（zhCN、zhTW）/ 西语（esES）/ 拉美西语（esMX）/ 俄语（ruRU）/ 韩语（koKR）/ 其余英文
 int dm_lang_group_of(int lang);                       // 同上，给定原版语言号 | Same as above, given an original language number
 const char *dm_ui_group(const char *key, int group);  // 编译期表按指定的那一套取（DM_LG_*） | Look up the compile-time table in the specified set (DM_LG_*)

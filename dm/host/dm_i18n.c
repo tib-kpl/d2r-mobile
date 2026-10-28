@@ -30,6 +30,7 @@ int dm_lang_from_tag(const char *t) {
     char l[4] = { 0 }; int i = 0; while (i < 3 && t[i] && t[i] != '-' && t[i] != '_') { l[i] = (char)(t[i] | 0x20); i++; }
     static const char *const zh[] = { "zh", "yue", "wuu", "hak", "nan", "cmn", "gan", "hsn", "lzh" };
     for (unsigned k = 0; k < sizeof zh / sizeof *zh; k++) if (!strcmp(l, zh[k])) return 8;
+    if (!strcmp(l, "fr")) return 3;   // 法语文字，配音按资源选择 | French text; voice follows available resources
     if (!strcmp(l, "ko")) return 5;   // koKR：韩国官方文字，配音在资源分块 11（hle_fs.c voice_for）
     if (!strcmp(l, "ru")) return 7;   // ruRU：俄罗斯官方文字，包里配音只有中英，语音按 voice_for 走英文 | ruRU: the official Russian text; the voice-over follows voice_for (Russian only when the resources carry it, otherwise English)
     if (!strcmp(l, "es")) {   // 地区子标记：跳过 4 个字母的字形子标记（es-Latn-ES），取紧跟的 2 个字母或 3 位数字 | Region subtag: skip a 4-letter script subtag (es-Latn-ES), take the 2 letters or 3 digits that follow
@@ -73,10 +74,10 @@ int dm_lang_zh(void) { int l = dm_lang_index(); return l == 8 || l == 9; }   // 
 int dm_lang_group(void) { return dm_lang_group_of(dm_lang_index()); }
 
 const char *dm_ui(const char *key) { return dm_ui_group(key, dm_lang_group()); }
-int dm_lang_group_of(int l) { return l == 8 || l == 9 ? DM_LG_ZH : l == 2 ? DM_LG_ES : l == 10 ? DM_LG_MX : l == 7 ? DM_LG_RU : l == 5 ? DM_LG_KO : DM_LG_EN; }
+int dm_lang_group_of(int l) { return l == 8 || l == 9 ? DM_LG_ZH : l == 2 ? DM_LG_ES : l == 10 ? DM_LG_MX : l == 7 ? DM_LG_RU : l == 5 ? DM_LG_KO : l == 3 ? DM_LG_FR : DM_LG_EN; }
 const char *dm_ui_group(const char *key, int group) {
     for (unsigned i = 0; i < sizeof k_dm_i18n / sizeof *k_dm_i18n; i++) if (!strcmp(k_dm_i18n[i].k, key)) {
-        switch (group) { case DM_LG_ZH: return k_dm_i18n[i].zh; case DM_LG_ES: return k_dm_i18n[i].es; case DM_LG_MX: return k_dm_i18n[i].mx; case DM_LG_RU: return k_dm_i18n[i].ru; case DM_LG_KO: return k_dm_i18n[i].ko; default: return k_dm_i18n[i].en; } }
+        switch (group) { case DM_LG_ZH: return k_dm_i18n[i].zh; case DM_LG_ES: return k_dm_i18n[i].es; case DM_LG_MX: return k_dm_i18n[i].mx; case DM_LG_RU: return k_dm_i18n[i].ru; case DM_LG_KO: return k_dm_i18n[i].ko; case DM_LG_FR: return k_dm_i18n[i].fr; default: return k_dm_i18n[i].en; } }
     return key;
 }
 

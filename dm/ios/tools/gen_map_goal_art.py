@@ -107,7 +107,8 @@ def main():
         mx = cache[f][key]['esMX']; label(mx, col, font).save(os.path.join(OUT, 'label_%d_mx.png' % i))
         ru = cache[f][key]['ruRU']; label(ru, col, font).save(os.path.join(OUT, 'label_%d_ru.png' % i))   # 俄语：原版 ruRU 名字 | Russian: original ruRU names
         ko = cache[f][key]['koKR']; label(ko, col, font).save(os.path.join(OUT, 'label_%d_ko.png' % i))   # 韩语：原版 koKR 名字（BlizzardGlobal 带韩文字形）
-        man.append({'id': i, 'file': f, 'key': key, 'zhCN': zh, 'old': zo, 'enUS': en, 'esES': es, 'esMX': mx, 'ruRU': ru, 'koKR': ko, 'color': list(col)})
+        fr = cache[f][key]['frFR']; label(fr, col, font).save(os.path.join(OUT, 'label_%d_fr.png' % i))   # 法语原版名称 | Original French names
+        man.append({'id': i, 'file': f, 'key': key, 'zhCN': zh, 'old': zo, 'enUS': en, 'esES': es, 'esMX': mx, 'ruRU': ru, 'koKR': ko, 'frFR': fr, 'color': list(col)})
     json.dump({'text_px': TEXT_PX, 'symbol_frames': 7, 'labels': man}, open(os.path.join(OUT, 'mapgoal.json'), 'w'), ensure_ascii=False, indent=1)
     print('mapgoal：符号 7 帧、十字 1、朝向指针 1、名牌 %d（旧译名不同的 %d）→ %s' % (len(man), sum(m['old'] != m['zhCN'] for m in man), OUT))
 

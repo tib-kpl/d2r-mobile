@@ -128,6 +128,9 @@ class ModeCache(unittest.TestCase):
         self.tools = self.root / 'ios/tools'
         self.tools.mkdir(parents=True)
         (self.tools / 'generator.py').write_text('# synthetic generator source\n', encoding='utf-8')
+        (self.root / 'i18n').mkdir()
+        for name in ('ui_text.tsv', 'touch_fr.tsv'):
+            (self.root / 'i18n' / name).write_text('synthetic translation table\n', encoding='utf-8')
         self.romfs = self.root / 'romfs'
         (self.romfs / 'data').mkdir(parents=True)
         (self.romfs / 'data/build_manifest.psv').write_bytes(b'frozen-test-input\n')
@@ -179,6 +182,14 @@ class ModeCache(unittest.TestCase):
         with mock.patch.object(gen_assets, 'run_steps', side_effect=self.fake_generate):
             self.assertTrue(gen_assets.ensure(str(self.romfs)))
             (self.output / 'NativeHUD/v4/hud_v4_ui/sil_dm_native_skill_0.png').unlink()
+            self.assertTrue(gen_assets.ensure(str(self.romfs)))
+        self.assertEqual(self.calls, [False, False])
+
+    def test_translation_change_invalidates_cached_glyphs(self):
+        with mock.patch.object(gen_assets, 'run_steps', side_effect=self.fake_generate):
+            self.assertTrue(gen_assets.ensure(str(self.romfs)))
+            self.assertFalse(gen_assets.ensure(str(self.romfs)))
+            (self.root / 'i18n/ui_text.tsv').write_text('changed translation\n', encoding='utf-8')
             self.assertTrue(gen_assets.ensure(str(self.romfs)))
         self.assertEqual(self.calls, [False, False])
 

@@ -1,5 +1,25 @@
 # D2R Mobile
 
+## Ce que ce fork apporte
+
+- **Français** : textes du jeu et du port, écrans Android et choix de langue. Les
+  voix françaises sont activées lorsque toutes leurs archives sont présentes ; le
+  pack préparé depuis vos fichiers du jeu indique les archives à conserver.
+- **Dossier du jeu au choix** : sélection du stockage interne ou d'une carte SD,
+  emplacement mémorisé et lecture directe des ressources et du pack préparé.
+  Le dossier `android` reste à côté de `data` : aucune copie interne du pack n'est
+  nécessaire. Les sauvegardes et caches restent dans le stockage de l'application.
+- **Releases Android automatiques** : chaque push de branche construit, vérifie et
+  publie un APK signé ainsi que `SHA256SUMS` dans une release normale, liée au commit.
+- **Documentation française** : [installation Android et fonctionnement du fork](docs/ANDROID.fr.md).
+
+**Compatibilité du jeu : Switch 1.0.34.0.** La 1.0.33.0 fournie a été analysée : son
+programme principal utilise un autre jeu d'adresses. Elle nécessite un profil de
+portage distinct et **n'est pas encore prise en charge**. Le contrôle de version
+reste actif et explique ce cas avant la préparation du pack.
+
+---
+
 **An open-source compatibility layer for Diablo II: Resurrected with the Reign of the Warlock expansion, for iOS, macOS, Android and HarmonyOS.** It brings the Nintendo Switch release you bought, expansion included, to iPhone, iPad and Mac in full: the original game code runs natively, every control is rebuilt for touch, the frame rate holds at 60 fps, and you are in a game one second after the main menu. There is now a native macOS version as well (first version): on an Apple silicon Mac it starts on double-click and works with keyboard, mouse and gamepad. **Since v2.0 there is an Android version** (community port): the same game program executes natively on ARM64 Android phones, with the graphics reimplemented on Vulkan; on a Snapdragon 8+ Gen 1 phone the camp and the Den of Evil and Cow Level fights all run at a median 60 fps (see "Android" below); a HarmonyOS version runs on the same engine (community port: an unsigned shell from the Releases page that you re-sign yourself, nothing to build; see "HarmonyOS"). Apple TV 4K (3rd generation, A15) has a community port (developer preview) that has reached the character-selection screen only on its author's device; see the device table below.
 
 This is not a tech demo that "sort of runs". It is a mobile version polished for daily play, from your first character all the way through the endgame.
@@ -161,7 +181,7 @@ Most features can be toggled one by one in game under Options → Custom.
 
 ### English, Chinese, Spanish, Russian and Korean
 
-The whole game switches between English, Chinese, Spanish, Russian, Korean and French under Options → Custom; after a restart, the interface is in the language you chose. On first launch it follows your device language (Spanish from Spain uses the game's esES text, other Spanish regions use the Latin American esMX text). In English, Spanish, Russian and Korean, items, skills and monsters use the original Diablo II wording, and everything we added — Greater Rift, Chronicle, the settings page, gesture prompts, map name plates — is translated too (item notes are translated for Chinese and Spanish only). Russian is the game's single ruRU text and Korean its koKR text, with no regional variants. Voice acting: Chinese UI gets Chinese voices; Russian and Korean get the original Russian or Korean voices when your game files include them (a package built from the complete game data does), otherwise English; everything else is English. Korean was contributed by [@soulsakura](https://github.com/soulsakura) ([#118](https://github.com/jhaizhou-ops/d2r-mobile/pull/118)).
+The whole game switches between English, Chinese, Spanish, Russian, Korean and French under Options → Custom; after a restart, the interface is in the language you chose. On first launch it follows your device language (Spanish from Spain uses the game's esES text, other Spanish regions use the Latin American esMX text). In English, Spanish, Russian and Korean, items, skills and monsters use the original Diablo II wording, and everything we added — Greater Rift, Chronicle, the settings page, gesture prompts, map name plates — is translated too (item notes are translated for Chinese and Spanish only). Russian is the game's single ruRU text and Korean its koKR text, with no regional variants. Voice acting: Chinese UI gets Chinese voices; Russian and Korean get the original Russian or Korean voices when your game files include them (a package built from the complete game data does), otherwise English; French uses the original French voices when the prepared pack lists them and all corresponding archives are present, otherwise English; other languages use English. Korean was contributed by [@soulsakura](https://github.com/soulsakura) ([#118](https://github.com/jhaizhou-ops/d2r-mobile/pull/118)).
 
 <p align="center">
   <img src="https://github.com/jhaizhou-ops/d2r-mobile/releases/download/assets/en_game.jpg" width="58%" alt="Gameplay with the English interface">
@@ -206,7 +226,7 @@ Measured by the port's authors on their phones (product defaults: 3D render scal
 
 Minimum: ARM64, Android 12 (API 31) or later, and a GPU with Vulkan 1.1.
 
-**How to use it today**: install `D2RMobile-android.apk` from the release page (it contains no game content). On a computer, run `python3 dm/tools/d2rm_android.py <Update directory> <output directory>` on your own game files to make the import pack (an `android` folder with the rewritten game program, every Vulkan shader bundle, the touch overlay and a few data tables), and copy it together with your game resources (the `data` folder) to `Download/S2X/D2R Mobile/` on the phone. The App imports it with a progress screen when you open it. No adb, and no need to build the APK yourself. The full steps are in [docs/ANDROID.md](docs/ANDROID.md). The touch controls are drawn the same way as on iPhone (button sockets, silver skill silhouettes, joystick), and no virtual pad buttons cover open panels. Compared with the iOS version, a few touch details are still unfinished: the empty-skill-slot menu, the stat-point overlay, and the item image that follows your finger while dragging in a shop.
+**How to use it today**: install `D2RMobile-android.apk` from the release page (it contains no game content). On a computer, run `python3 dm/tools/d2rm_android.py <Update directory> <output directory>` on your own game files to make the import pack (an `android` folder with the rewritten game program, every Vulkan shader bundle, the touch overlay and a few data tables), and copy it together with your game resources (the `data` folder) to `Download/S2X/D2R Mobile/` on the phone. Choose this folder in the app. Its location is remembered and the prepared files are read in place. No adb, and no need to build the APK yourself. The full steps are in [docs/ANDROID.md](docs/ANDROID.md). The touch controls are drawn the same way as on iPhone (button sockets, silver skill silhouettes, joystick), and no virtual pad buttons cover open panels. Compared with the iOS version, a few touch details are still unfinished: the empty-skill-slot menu, the stat-point overlay, and the item image that follows your finger while dragging in a shop.
 
 Progress, the measurements from every round and the remaining work are in [docs/ANDROID_COLLABORATION.md](docs/ANDROID_COLLABORATION.md) and [docs/android-notes/](docs/android-notes/). The HarmonyOS version is in the next section.
 
@@ -321,7 +341,7 @@ No Mac, no adb and no building the APK yourself; any Windows / Linux / Mac compu
    ```
 
 3. Over USB, copy the `android` folder it made and the game resource folder `data` to `Download/S2X/D2R Mobile/` on the phone.
-4. Download `D2RMobile-android.apk` from the [Releases page](https://github.com/jhaizhou-ops/d2r-mobile/releases), install it, open it and allow "All files access"; the App imports the pack and starts the game.
+4. Download `D2RMobile-android.apk` from the [Releases page](https://github.com/jhaizhou-ops/d2r-mobile/releases), install it, open it and allow "All files access"; choose the game folder in the App to read the pack in place and start the game.
 
 The source must be from the same release as the APK; for a new release, replace both the APK and the import pack, and your saves stay. To build the APK yourself from source, see [dm/android/README.md](dm/android/README.md).
 
@@ -345,7 +365,7 @@ The source must be from the same release as the shell. For a new release, re-sig
 
 Download our prebuilt "shell" package (`D2RMobile-shell-build-input.zip`; `D2RMobile-shell-ios18-build-input.zip` for iOS 18 – 25), which contains no game content, from this repository's [Releases page](https://github.com/jhaizhou-ops/d2r-mobile/releases), add your own game files, make the install package on Windows or Linux, then sign and install it with a sideloading tool. The shell is build input, not an app to install (installed as is, it only shows a dialog and does not start the game); when you move to a new release, make the install package again with the new shell. On this route only, because the computer making the package has no Apple shader compiler, the **first launch** on the phone spends about 7 minutes compiling shaders (once, with a progress bar); a package built with Xcode has no such step. The steps, and how far each one has been verified, are in [docs/NO_XCODE.md](docs/NO_XCODE.md).
 
-French installation instructions and automatic Android releases for this fork: [docs/ANDROID.fr.md](docs/ANDROID.fr.md). French text is supported; voice-over remains English.
+French installation instructions and automatic Android releases for this fork: [docs/ANDROID.fr.md](docs/ANDROID.fr.md). French text and voices are supported when the French audio archives are present.
 
 ## Known limitations
 

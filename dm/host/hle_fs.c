@@ -367,7 +367,12 @@ static int voice_chunk_present(int chunk) {
     char b[1024], p[1100]; snprintf(p, sizeof p, "%s/data/%02d-00000001.data", envdir("DM_ROMFS", "data/switch/3.3.94012/Update/RomFS", b, sizeof b), chunk);
     return !access(p, F_OK);
 }
-static int voice_for(int lang) { return lang == 8 ? 8 : lang == 7 && voice_chunk_present(16) ? 7 : lang == 5 && voice_chunk_present(11) ? 5 : 0; }
+#include "dm_voice.h"
+static int voice_for(int lang) {
+    char root[1024];
+    if (lang == 3 && dm_voice_fr_available(envdir("DM_ROMFS", "data/switch/3.3.94012/Update/RomFS", root, sizeof root))) return 3;
+    return lang == 8 ? 8 : lang == 7 && voice_chunk_present(16) ? 7 : lang == 5 && voice_chunk_present(11) ? 5 : 0;
+}
 static void settings_seed(const char *save_dir) {
     const char *e = getenv("DM_TOUCH_DEFAULTS"); int on = e ? strcmp(e, "0") != 0 : DM_PHONE; if (!on) return;
     static const char *kv[][2] = {{"\"Item Name Display\"", "1"}, {"\"Item Tooltip Hotkey Appender\"", "0"},

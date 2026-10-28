@@ -1,5 +1,16 @@
 # D2R Mobile
 
+## 本分支新增
+
+- 法语界面与 Android 提示；对应音频档案齐全时自动启用法语配音。
+- 选择并记住本地或 SD 卡游戏目录，直接读取 `data` 与准备好的 `android`，无需复制导入包。
+- 每次分支 push 自动构建签名 APK，验证后发布普通 GitHub Release 与 SHA256SUMS。
+- 法语安装说明：[docs/ANDROID.fr.md](docs/ANDROID.fr.md)。
+
+目前游戏仍需 Switch 1.0.34.0。已分析 1.0.33.0：主程序地址不同，需要单独移植配置，尚未支持。
+
+---
+
 **开源的《暗黑破坏神 II：狱火重生》术士君临兼容层，支持 iOS、macOS、安卓与鸿蒙。** 把你自己购买的 Nintendo Switch 版游戏（含「术士君临」资料片）完整带到 iPhone、iPad 和 Mac 上：原版内核原生执行，整套操作为触屏重做，稳定 60 帧，一秒进局。现在也有原生的 macOS 版（第一版）：Apple 芯片的 Mac 上双击启动，键盘、鼠标、手柄都能用。**v2.0 起有了安卓版**（社区移植）：同一份游戏程序在 ARM64 安卓手机上原生执行，图形在 Vulkan 上重新实现；骁龙 8+ 一代的手机上，营地、邪恶洞穴和奶牛关的战斗都是中位 60 帧，详见下面的「安卓版」；同一套引擎上还有鸿蒙版（社区移植，发布页下载未签名壳、自己重签即可，不用自己构建，见「鸿蒙版」）。Apple TV 4K（第三代 A15）有社区移植（开发者预览），只在作者的实机上到过职业选择画面，详见下面的设备表。
 
 这不是一个「勉强能跑」的技术演示，而是一个打磨到可以天天玩、从开荒一路玩到终局的移动版。
@@ -429,4 +440,4 @@ DM_MAC_M3=1 dm/tools/mac_app.sh      # macOS 15 – 25：产出 D2R Mobile M3.ap
 
 MIT，见 [LICENSE](LICENSE)。第三方代码各自的许可证在其目录内，见 [docs/DEPENDENCIES.zh-CN.md](docs/DEPENDENCIES.zh-CN.md)。
 
-本分支支持法语文字（配音仍为英语），并在每次分支 push 成功后自动发布签名 Android 预发布版。法语安装与 CI 配置：[docs/ANDROID.fr.md](docs/ANDROID.fr.md)。
+本分支支持法语文字与完整档案下的法语配音，并在每次分支 push 成功后自动发布签名 Android 普通 Release。法语安装与 CI 配置：[docs/ANDROID.fr.md](docs/ANDROID.fr.md)。

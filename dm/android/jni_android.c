@@ -83,7 +83,7 @@ static void *log_pump(void *arg) {
 }
 static void log_init(void) {
     static int initialized; if (initialized) return; initialized = 1;
-    char p[1200]; snprintf(p, sizeof p, "%s/boot.log", g_runtime); g_logf = fopen(p, "a");
+    char p[1200]; snprintf(p, sizeof p, "%s/boot.log", g_files); g_logf = fopen(p, "a");
     int fds[2]; if (pipe(fds)) return;
     dup2(fds[1], 2); close(fds[1]); setvbuf(stderr, NULL, _IOLBF, 0);
     pthread_t th; if (!pthread_create(&th, NULL, log_pump, (void *)(intptr_t)fds[0])) pthread_detach(th);
@@ -100,6 +100,13 @@ static void mkdirs(const char *p) {
 // The ".holes" extent tables of zero-stripped archives are linked too: hle_fs.c looks for them next to the archive (in romfs/data/); without them a zero-stripped archive is read at physical offsets, and everything after its first stripped range comes from the wrong place (decompression failures, then a crash)
 static int link_romfs(const char *romfs) {
     char data[1100]; snprintf(data, sizeof data, "%s/data", romfs); mkdirs(data);
+    // 换资源目录时清除旧链接，不触碰玩家的原文件。
+    // Remove stale links when changing resource folders, leaving the player's originals untouched.
+    DIR *old = opendir(data);
+    if (old) { struct dirent *entry; while ((entry = readdir(old))) {
+        char path[1300]; struct stat st; snprintf(path, sizeof path, "%s/%s", data, entry->d_name);
+        if (!lstat(path, &st) && S_ISLNK(st.st_mode)) unlink(path);
+    } closedir(old); }
     DIR *d = opendir(g_src); if (!d) { LOG("【红】资源目录打不开 %s：errno %d（没给「所有文件访问」权限？）", g_src, errno); return -1; }
     struct dirent *e; int n = 0;
     while ((e = readdir(d))) {
@@ -145,10 +152,12 @@ static void load_env_file(const char *dir) {
     fclose(fp);
 }
 
-JNIEXPORT jint JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeStart(JNIEnv *env, jclass cls, jstring files, jstring ext, jstring src, jstring lang) {
+JNIEXPORT jint JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeStart(JNIEnv *env, jclass cls, jstring files, jstring ext, jstring src, jstring lang, jstring runtime) {
     (void)cls;
     static int started; if (started) return 0;
     const char *f = (*env)->GetStringUTFChars(env, files, NULL), *x = (*env)->GetStringUTFChars(env, ext, NULL), *s = (*env)->GetStringUTFChars(env, src, NULL), *lg = (*env)->GetStringUTFChars(env, lang, NULL);
+    const char *rt = (*env)->GetStringUTFChars(env, runtime, NULL);
+    if (!rt) return -1;
     snprintf(g_files, sizeof g_files, "%s", f); snprintf(g_ext, sizeof g_ext, "%s", x); snprintf(g_src, sizeof g_src, "%s", s);
     // 启动时间线零点：Process.getStartUptimeMillis() 是 SystemClock.uptimeMillis（CLOCK_MONOTONIC），与 now_ns 同一时钟（见 main.c proc_start_mono_ns）
     // Boot timeline zero: Process.getStartUptimeMillis() is SystemClock.uptimeMillis (CLOCK_MONOTONIC), the same clock as now_ns (see main.c proc_start_mono_ns)
@@ -156,16 +165,16 @@ JNIEXPORT jint JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeStart(JNIEnv *env
     g_proc_start_ns = (uint64_t)(*env)->CallStaticLongMethod(env, proc, (*env)->GetStaticMethodID(env, proc, "getStartUptimeMillis", "()J")) * 1000000ull;
     // 调试包可用 run-as 导入内部目录；有完整主程序时优先选内部目录。
     // Debug builds can import via run-as; prefer internal storage when the main module exists.
-    char p[1200]; snprintf(g_runtime, sizeof g_runtime, "%s/dm", g_files);
-    snprintf(p, sizeof p, "%s/out/main.patched.bin", g_runtime);
-    if (access(p, R_OK)) snprintf(g_runtime, sizeof g_runtime, "%s/dm", g_ext);
-    mkdirs(g_runtime);
+    char p[1200]; snprintf(g_runtime, sizeof g_runtime, "%s", rt);
+    (*env)->ReleaseStringUTFChars(env, runtime, rt);
     log_init();
     load_env_file(g_runtime);
     LOG("boot: 内部目录 %s，外部目录 %s，资源 %s，系统语言 %s", g_files, g_ext, g_src, lg);
     char romfs[1100], save[1100], temp[1100];
     snprintf(romfs, sizeof romfs, "%s/romfs", g_files); snprintf(save, sizeof save, "%s/save", g_files); snprintf(temp, sizeof temp, "%s/temp", g_files);
     mkdirs(save); mkdirs(temp);
+    char cache[1100]; snprintf(cache, sizeof cache, "%s/vulkan-cache", g_files); mkdirs(cache);
+    setenv("DM_VK_CACHE_DIR", cache, 1);
     int n = link_romfs(romfs);
     LOG("boot: 资源链接 %d 个文件", n);
     setenv("DM_ROMFS", romfs, 0); setenv("DM_SAVE", save, 0); setenv("DM_TEMP", temp, 0);

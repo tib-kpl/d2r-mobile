@@ -12,6 +12,9 @@ import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.provider.DocumentsContract;
+import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.text.Editable;
@@ -30,19 +33,17 @@ import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.Button;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Locale;
 
 public class DmActivity extends Activity implements SurfaceHolder.Callback, DisplayManager.DisplayListener {
-    static native int nativeStart(String filesDir, String extDir, String romfsSrc, String lang);
+    static native int nativeStart(String filesDir, String extDir, String romfsSrc, String lang, String runtimeDir);
     static native void nativeSurface(Object surface, int w, int h);
     static native void nativeRefresh(float hz);
     static native void nativeTouch(int n, int[] ids, float[] xs, float[] ys);
@@ -71,9 +72,11 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     private FrameLayout gameFrame;
     private TouchOverlay touchOverlay;
     private boolean started;
-    private boolean importing;
     private boolean libraryLoaded;
     private boolean resumed;
+    private boolean pickingFolder;
+    private boolean folderPendingRestart;
+    private static final int PICK_GAME_FOLDER = 40;
     private DisplayManager displays;
     private CamSensor camSensor;
     private CamButtons camButtons;
@@ -118,16 +121,82 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         return false;
     }
 
-    // 导入包：玩家在电脑上用 dm/tools/d2rm_android.py 和自己的游戏文件做出 android 文件夹，拷到 Download/S2X/D2R Mobile/ 下；
-    // 这里把它拷进内部目录 files/dm/（out、shaders、overlay、derived.tsv、pack_info.txt）。pack_info.txt 与已导入的逐字相同就不再拷。
-    // 先拷到 files/dm/import.part/，齐了再逐项换上，pack_info.txt 最后放：中途被杀或空间不够，下次打开从头再导，不会用到半份。
-    // 原生库加载之前做：不含游戏内容的发布包，几张表在库加载时就从 derived.tsv 读（dm/host/dm_derived_rt.h）。
-    // Import pack: the player makes the android folder on a computer with dm/tools/d2rm_android.py and their own game files and copies it to
-    // Download/S2X/D2R Mobile/; this copies it into the internal files/dm/ (out, shaders, overlay, derived.tsv, pack_info.txt). Nothing is copied
-    // when pack_info.txt is the same as the imported one. It goes to files/dm/import.part/ first and replaces the items one by one once complete,
-    // pack_info.txt last: if the app is killed or runs out of space, the next start imports again and half a copy is never used.
-    // Done before the native library loads: in the release APK without game content, a few tables are read from derived.tsv at load time.
-    private static final String[] IMPORT_ITEMS = {"out", "shaders", "overlay", "derived.tsv", "pack_info.txt"};
+    // 系统文件夹选择器只接受本地卷；原生层需要可 seek / mmap 的真实路径。
+    // The system picker accepts local volumes; the native host needs real paths for seek and mmap.
+    private void pickGameFolder() {
+        pickingFolder = true;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        String previous = getPreferences(MODE_PRIVATE).getString("game_tree_uri", null);
+        if (previous != null) intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(previous));
+        else {
+            StorageManager storage = getSystemService(StorageManager.class);
+            if (storage != null) for (StorageVolume volume : storage.getStorageVolumes()) {
+                if (volume.isRemovable() && volume.getDirectory() != null && volume.getUuid() != null) {
+                    intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", volume.getUuid() + ":"));
+                    break;
+                }
+            }
+        }
+        try { startActivityForResult(intent, PICK_GAME_FOLDER); }
+        catch (android.content.ActivityNotFoundException e) { pickingFolder = false; showStartError(getString(R.string.dmAndroidFolderUnsupported)); }
+    }
+
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != PICK_GAME_FOLDER) return;
+        pickingFolder = false;
+        if (result != RESULT_OK || data == null || data.getData() == null) { showFolderScreen(getString(R.string.dmAndroidChooseFolderHint)); return; }
+        Uri uri = data.getData();
+        try {
+            if (!"com.android.externalstorage.documents".equals(uri.getAuthority())) throw new IOException("Non-local provider");
+            String[] id = DocumentsContract.getTreeDocumentId(uri).split(":", 2);
+            if (id.length != 2) throw new IOException("Invalid document ID");
+            StorageManager storage = getSystemService(StorageManager.class);
+            File volumeRoot = null;
+            if (storage != null) for (StorageVolume volume : storage.getStorageVolumes()) {
+                if (("primary".equals(id[0]) && volume.isPrimary()) || id[0].equalsIgnoreCase(volume.getUuid())) volumeRoot = volume.getDirectory();
+            }
+            if (volumeRoot == null) throw new IOException("Unavailable volume");
+            File folder = GamePaths.treePath(volumeRoot, id[1]);
+            if (GamePaths.dataDirectory(folder) == null) { showFolderScreen(getString(R.string.dmAndroidFolderInvalid)); return; }
+            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getPreferences(MODE_PRIVATE).edit().putString("game_folder", folder.getAbsolutePath()).putString("game_tree_uri", uri.toString()).apply();
+            if (libraryLoaded) { folderPendingRestart = true; showFolderScreen(getString(R.string.dmAndroidFolderRestart)); }
+            else startHost();
+        } catch (IOException | IllegalArgumentException | SecurityException e) { showFolderScreen(getString(R.string.dmAndroidFolderUnsupported)); }
+    }
+
+    private void showFolderScreen(String message) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(64, 48, 64, 48);
+        TextView text = new TextView(this); text.setTextSize(20); text.setText(message); panel.addView(text);
+        String selected = getPreferences(MODE_PRIVATE).getString("game_folder", null);
+        if (selected != null) { TextView path = new TextView(this); path.setText(getString(R.string.dmAndroidSelectedFolder, selected)); path.setTextIsSelectable(true); panel.addView(path); }
+        Button choose = new Button(this); choose.setText(R.string.dmAndroidChooseFolder); choose.setOnClickListener(v -> pickGameFolder()); panel.addView(choose);
+        if (selected != null) {
+            Button forget = new Button(this); forget.setText(R.string.dmAndroidForgetFolder);
+            forget.setOnClickListener(v -> {
+                String uri = getPreferences(MODE_PRIVATE).getString("game_tree_uri", null);
+                if (uri != null) try { getContentResolver().releasePersistableUriPermission(Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (SecurityException ignored) { }
+                getPreferences(MODE_PRIVATE).edit().remove("game_folder").remove("game_tree_uri").apply();
+                folderPendingRestart = libraryLoaded;
+                showFolderScreen(getString(folderPendingRestart ? R.string.dmAndroidFolderRestart : R.string.dmAndroidChooseFolderHint));
+            }); panel.addView(forget);
+        }
+        if (!folderPendingRestart && selected != null) {
+            Button retry = new Button(this); retry.setText(R.string.dmAndroidRetry); retry.setOnClickListener(v -> startHost()); panel.addView(retry);
+        }
+        setContentView(panel);
+    }
+
+    @Override public boolean onKeyUp(int code, android.view.KeyEvent event) {
+        if (code == android.view.KeyEvent.KEYCODE_MENU) {
+            new AlertDialog.Builder(this).setItems(new String[] {getString(R.string.dmAndroidChooseFolder)}, (dialog, which) -> pickGameFolder()).show();
+            return true;
+        }
+        return super.onKeyUp(code, event);
+    }
 
     private static String readText(File f) {
         try { return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8); } catch (IOException e) { return null; }
@@ -138,105 +207,22 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         return null;
     }
 
-    // true = 可以接着启动；false = 正在导入或已显示错误
-    // true = startup can continue; false = importing, or an error is shown
-    private boolean ensureImported(File source) {
-        if (importing) return false;
-        File runtime = new File(getFilesDir(), "dm");
-        String want = readText(new File(source, "pack_info.txt")), have = readText(new File(runtime, "pack_info.txt"));
-        if (want != null && !want.equals(have)) {
-            String product = packProduct(want);
-            if (!BuildConfig.DM_PRODUCT.equals(product)) { showStartError(getString(R.string.dmAndroidImportVersion, product)); return false; }
-            importing = true;
-            TextView t = new TextView(this);
-            t.setTextSize(20); t.setPadding(64, 64, 64, 64); t.setText(getString(R.string.dmAndroidImporting, 0));
-            setContentView(t);
-            new Thread(() -> {
-                String error = null;
-                try { importPack(source, runtime, percent -> runOnUiThread(() -> t.setText(getString(R.string.dmAndroidImporting, percent)))); }
-                catch (IOException e) { error = e.getMessage() == null ? e.toString() : e.getMessage(); }
-                String failure = error;
-                runOnUiThread(() -> {
-                    importing = false;
-                    if (failure != null) showStartError(getString(R.string.dmAndroidImportFailed, failure));
-                    else startHost();
-                });
-            }, "dm-import").start();
-            return false;
-        }
-        // 已导入的是给别的版本做的（App 升级了、导入包没重做）：同样要重做导入包。开发时直接推进来的没有 pack_info.txt，不核
-        // The imported pack was made for another version (the app was updated, the pack was not remade): it has to be remade too.
-        // Files pushed directly during development have no pack_info.txt and are not checked
-        String product = packProduct(have);
-        if (have != null && !BuildConfig.DM_PRODUCT.equals(product)) { showStartError(getString(R.string.dmAndroidImportVersion, product)); return false; }
-        return true;
-    }
-
-    private interface Progress { void percent(int p); }
-
-    private static void importPack(File source, File runtime, Progress progress) throws IOException {
-        for (String item : IMPORT_ITEMS) if (!new File(source, item).exists()) throw new IOException("missing " + item);
-        File part = new File(runtime, "import.part");
-        deleteTree(part);
-        long sum = 0;
-        for (String item : IMPORT_ITEMS) sum += treeSize(new File(source, item));
-        final long total = sum;
-        long[] done = {0}; int[] shown = {-1};
-        byte[] buffer = new byte[1 << 20];
-        for (String item : IMPORT_ITEMS) copyTree(new File(source, item), new File(part, item), buffer, bytes -> {
-            done[0] += bytes;
-            int p = (int) (done[0] * 100 / Math.max(1, total));
-            if (p != shown[0]) { shown[0] = p; progress.percent(p); }
-        });
-        for (String item : IMPORT_ITEMS) {
-            File from = new File(part, item), to = new File(runtime, item);
-            deleteTree(to);
-            if (!from.renameTo(to)) throw new IOException("rename " + item);
-        }
-        deleteTree(part);
-    }
-
-    private interface Copied { void bytes(long n); }
-
-    private static long treeSize(File f) {
-        if (!f.isDirectory()) return f.length();
-        long n = 0; File[] list = f.listFiles();
-        if (list != null) for (File c : list) n += treeSize(c);
-        return n;
-    }
-
-    private static void copyTree(File from, File to, byte[] buffer, Copied copied) throws IOException {
-        if (from.isDirectory()) {
-            if (!to.isDirectory() && !to.mkdirs()) throw new IOException("mkdir " + to.getName());
-            File[] list = from.listFiles();
-            if (list == null) throw new IOException("list " + from.getName());
-            for (File c : list) copyTree(c, new File(to, c.getName()), buffer, copied);
-            return;
-        }
-        File parent = to.getParentFile();
-        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) throw new IOException("mkdir " + parent.getName());
-        try (InputStream in = new FileInputStream(from); OutputStream out = new FileOutputStream(to)) {
-            for (int n; (n = in.read(buffer)) > 0; ) { out.write(buffer, 0, n); copied.bytes(n); }
-        }
-    }
-
-    private static void deleteTree(File f) throws IOException {
-        File[] list = f.isDirectory() ? f.listFiles() : null;
-        if (list != null) for (File c : list) deleteTree(c);
-        if (f.exists() && !f.delete()) throw new IOException("delete " + f.getName());
-    }
-
     private void startHost() {
         if (bootFailure != 0) { showBootFailure(); return; }
-        if (started || importing || !resumed || !ensureFileAccess()) return;
-        File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        if (!libraryLoaded && !ensureImported(new File(downloads, "S2X/D2R Mobile/android"))) return;
+        if (started || pickingFolder || folderPendingRestart || !resumed || !ensureFileAccess()) return;
+        String selected = getPreferences(MODE_PRIVATE).getString("game_folder", null);
+        if (selected == null) { showFolderScreen(getString(R.string.dmAndroidChooseFolderHint)); return; }
+        File chosen = new File(selected), dataFolder = GamePaths.dataDirectory(chosen);
+        if (dataFolder == null) { showFolderScreen(getString(R.string.dmAndroidFolderInvalid)); return; }
+        File external = getExternalFilesDir(null);
+        File runtime = GamePaths.runtimeDirectory(chosen, new File(getFilesDir(), "dm"), external == null ? null : new File(external, "dm"));
+        if (runtime == null) { showFolderScreen(getString(R.string.dmAndroidPreparedPackRequired)); return; }
+        String info = readText(new File(runtime, "pack_info.txt"));
+        if (info != null && !BuildConfig.DM_PRODUCT.equals(packProduct(info))) { showFolderScreen(getString(R.string.dmAndroidImportVersion, packProduct(info))); return; }
         if (gameFrame.getParent() == null) setContentView(gameFrame);
         if (!libraryLoaded) {
-            // 与 jni_android.c 选运行目录同一条规则：内部目录有主程序就用内部目录，否则用外部私有目录
-            // Same rule as jni_android.c's choice of runtime directory: internal storage when it has the main module, otherwise external private storage
-            File ext = getExternalFilesDir(null), internal = new File(getFilesDir(), "dm");
-            File runtime = new File(internal, "out/main.patched.bin").canRead() || ext == null ? internal : new File(ext, "dm");
+            // 原生构造函数与 JNI 共用选定目录，不导入另一份。
+            // Native constructors and JNI share the selected runtime without importing another copy.
             try { Os.setenv("DM_DERIVED", new File(runtime, "derived.tsv").getAbsolutePath(), true); } catch (ErrnoException e) { showStartError(getString(R.string.dmAndroidStorage)); return; }
             try { System.loadLibrary("dm"); libraryLoaded = true; }
             catch (UnsatisfiedLinkError error) { showStartError(getString(R.string.dmAndroidLibrary)); return; }
@@ -263,15 +249,10 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         if (ext == null) { showStartError(getString(R.string.dmAndroidStorage)); return; }
         nativeSurface(view.getHolder().getSurface(), view.getWidth(), view.getHeight());
         updateRefresh();
-        // 资源目录缺省 Download/S2X/D2R Mobile/data；没有这个目录、而早先的 Download/data 在时沿用早先的位置，已装好的手机不必搬数据。
-        // 按目录判断而不按 .build.config：它也可以由导入的覆盖层提供，资源目录里就没有。
-        // The resource directory defaults to Download/S2X/D2R Mobile/data; when that directory does not exist but the earlier
-        // Download/data does, the earlier one is kept, so existing installs need not move their data. The test is the directory,
-        // not .build.config: the imported overlay can provide that file, and then the resource directory has none.
-        File data = new File(downloads, "S2X/D2R Mobile/data"), earlier = new File(downloads, "data");
-        if (!data.isDirectory() && earlier.isDirectory()) data = earlier;
-        String src = data.getAbsolutePath();
-        int result = nativeStart(getFilesDir().getAbsolutePath(), ext.getAbsolutePath(), src, Locale.getDefault().toLanguageTag());
+        // 资源直接从记住的本地或 SD 卡目录读取。
+        // Read resources directly from the remembered local or SD-card directory.
+        String src = dataFolder.getAbsolutePath();
+        int result = nativeStart(getFilesDir().getAbsolutePath(), ext.getAbsolutePath(), src, Locale.getDefault().toLanguageTag(), runtime.getAbsolutePath());
         if (result < 0) {
             int resource = switch (result) {
                 case -2 -> R.string.dmAndroidMissingData;
@@ -303,9 +284,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     }
 
     private void showStartError(String message) {
-        TextView t = new TextView(this);
-        t.setText(message); t.setTextSize(20); t.setPadding(64, 64, 64, 64);
-        setContentView(t);
+        showFolderScreen(message);
     }
 
     // 原生线程只投递主线程工作，不持有 Activity，也不直接操作视图。

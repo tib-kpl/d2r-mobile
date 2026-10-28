@@ -894,7 +894,7 @@ void submit_slots(bool wait){
 // Pipelines persist across launches (the driver validates the header and
 // ignores incompatible data), so later launches skip shader compilation.
 size_t pipelines_unsaved=0;uint64_t pipeline_save_frame=0;constexpr uint64_t compile_ns=2000000;
-std::string pipeline_cache_path(){std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');return (cut==std::string::npos?dir:dir.substr(0,cut))+"/vk-pipeline-cache.bin";}
+std::string pipeline_cache_path(){const char *cache=getenv("DM_VK_CACHE_DIR");if(cache&&*cache)return std::string(cache)+"/vk-pipeline-cache.bin";std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');return (cut==std::string::npos?dir:dir.substr(0,cut))+"/vk-pipeline-cache.bin";}
 std::vector<uint8_t> load_pipeline_cache(){
     std::vector<uint8_t> data;FILE *f=fopen(pipeline_cache_path().c_str(),"rb");if(!f)return data;
     fseek(f,0,SEEK_END);long n=ftell(f);fseek(f,0,SEEK_SET);
@@ -2095,7 +2095,7 @@ std::unordered_map<std::string,VkPipeline> ready;std::vector<std::thread> thread
 std::atomic<uint64_t> built{0},failed{0},build_ns{0},compiled{0};uint64_t hits=0,creates=0,create_ns=0,create_max_ns=0;bool enabled=true;
 std::unordered_map<std::string,VkShaderModule> modules;std::unordered_map<std::string,VkPipelineLayout> layouts;std::unordered_map<std::string,VkRenderPass> passes;
 std::vector<VkDescriptorSetLayout> set_layouts;
-std::string list_path(){std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');return (cut==std::string::npos?dir:dir.substr(0,cut))+"/vk-pipeline-list.bin";}
+std::string list_path(){const char *cache=getenv("DM_VK_CACHE_DIR");if(cache&&*cache)return std::string(cache)+"/vk-pipeline-list.bin";std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');return (cut==std::string::npos?dir:dir.substr(0,cut))+"/vk-pipeline-list.bin";}
 void record(const VkGraphicsPipelineCreateInfo &ci,const XbgPipelineKey &key){
     std::string bytes(reinterpret_cast<const char*>(key.words),size_t(key.count)*4);
     std::vector<std::string> keys;{std::lock_guard<std::mutex> l(mu);if(!known.insert(bytes).second)return;

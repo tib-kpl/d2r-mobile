@@ -63,6 +63,9 @@ def main():
         try: st.reconfigure(errors='replace')
         except Exception: pass
     if not os.path.isdir(game): die('没有这个游戏文件目录：%s' % game)
+    from game_version import require_supported
+    try: require_supported(game)
+    except (OSError, ValueError) as error: die(str(error))
     dotnet = check_env(game)
     P = open(os.path.join(DM, 'PRODUCT')).readline().strip()
     romfs = os.path.join(game, 'RomFS'); stage = os.path.join(ROOT, 'build', 'pack', T); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
@@ -97,6 +100,9 @@ def main():
         with open(os.path.join(gen, name), 'w', encoding='utf-8') as f: f.write(run([PY, os.path.join(IOS, 'tools', gen_py), romfs], what='生成 ' + name))
     sys.path.insert(0, os.path.join(IOS, 'tools')); import shell_stubs
     say('数据表：经验 %d、部位 %d、仓库条目 %d、套装 %d、技能索引 %d' % shell_stubs.data(None, os.path.join(stage, 'derived.tsv'), gen))
+    from voice_resources import append_french_voice
+    french = append_french_voice(os.path.join(stage, 'derived.tsv'), os.path.join(romfs, 'data'))
+    say('French voice archives to keep in data/: ' + ', '.join(french))
     # CI 空壳也从导入包读昼夜表，不把游戏数据编进 APK。
     # CI shells read day/night data from the import pack instead of compiling game data into the APK.
     bright = run([PY, os.path.join(HERE, 'gen_bright_levels.py'), romfs], what='BRIGHT')

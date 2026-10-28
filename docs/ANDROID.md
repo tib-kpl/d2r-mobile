@@ -1,6 +1,6 @@
 # Playing on an Android phone
 
-The Android version works like the iOS shell: the release page has an **APK that contains no game content**, you make an **import pack** on a computer from your own game files, copy it to the phone, and the App imports it when you open it. No adb, no Android Studio, and no need to build the APK yourself.
+The release page has an **APK that contains no game content**. Prepare a game pack on a computer from your own game files, place it beside the resources on internal storage or an SD card, then choose that folder in the app. Its location is remembered and the files are read in place. No adb, Android Studio, or local APK build is required.
 
 中文：[ANDROID.zh-CN.md](ANDROID.zh-CN.md)
 
@@ -49,28 +49,42 @@ android/pack_info.txt which release this import pack is for
 
 Steps already done are skipped on the next run. This folder contains game content; keep it to yourself and do not distribute it.
 
-## Step 2: copy the files to the phone
+## Step 2: choose where to store the game
 
-Connect the phone by USB (choose "File transfer" on the phone) and, in the phone's `Download`, create `S2X/D2R Mobile/` holding two things:
+On internal shared storage or an SD card, create a game folder containing:
 
 ```
-Download/S2X/D2R Mobile/android/   the android folder from step 1, copied whole
-Download/S2X/D2R Mobile/data/      game resources: the 18 .data archives and .build.config from your game files' RomFS/data
+My D2R Game/android/   complete generated pack from step 1
+My D2R Game/data/      your resource archives and .build.config
 ```
 
-The 18 archives are listed in [GAME_FILES.md](GAME_FILES.md) in the section The "game resource folder" that goes on the phone; do not forget `.build.config` as well (a hidden file starting with a dot that computers often do not show; `build.config` without the dot is accepted too). Copy any `.data.holes` files along with them if you have them; they are optional.
+The folder name and location are up to you. Keep the French audio archives printed
+by the pack generator as well as the base resources. Copying the whole RomFS/data
+directory includes all available voice languages. The old 18-archive minimal set
+does not contain the French voices.
 
-## Step 3: install the APK and open it
+## Step 3: install and choose the folder
 
-1. Download `D2RMobile-android.apk` from the [release page](https://github.com/jhaizhou-ops/d2r-mobile/releases), copy it to the phone and tap it in the file manager to install. The phone may first ask you to allow "install unknown apps" or show a security check; confirm as it asks.
-2. Open the App. It needs "All files access" to read the game resources in `Download`: tap the screen to open the system setting, turn it on and come back.
-3. The App finds the `android` import pack and imports it into its internal storage with a progress screen (a minute or two the first time; stay on that screen), then starts the game.
+Install `D2RMobile-android.apk` from this fork's GitHub Releases and grant all-files
+access as requested. Tap **Choose game folder**, then select the local folder in
+Android's directory picker. Selecting its `data` child works too. The app remembers
+the folder and reads `data` and `android` in place, without importing another copy.
+Keep both directories. Cloud/virtual providers cannot be used by the native host.
 
-After the import you can delete the `android` folder on the phone; keep the `data` folder, the game reads its resources from there.
+An existing internal imported runtime is retained as a migration fallback if no
+prepared external runtime exists. Saves, logs and Vulkan caches remain internal.
+If a folder becomes unavailable, choose it again. The Android Menu key also opens
+the folder picker. A folder change after the native host has loaded takes effect
+after fully closing and reopening the app.
+
+French UI selects French voices only when every archive recorded for French in
+the prepared pack is readable; otherwise it uses English voices. Regenerate older
+packs to include the voice metadata. Switch 1.0.33.0 is still unsupported; see
+[the compatibility audit](VERSION_1_0_33.md).
 
 ## Moving to a new release
 
-Each new release needs both: **download the new APK**, and **redo step 1 with the source of the same release**, copying the new `android` folder over the old one. The new APK installs over the old one and keeps your saves; when opened, the App finds the new import pack and imports it again. The `data` folder stays as it is.
+Each new release needs both: **download the new APK**, and **redo step 1 with the source of the same release**, copying the new `android` folder over the old one. The new APK installs over the old one and keeps your saves; when opened, the App reads the updated prepared pack from the saved folder. The `data` folder stays as it is.
 
 If the APK and the import pack are from different releases, the App says "This import pack does not match this version of the app"; redo the import pack as it says.
 
@@ -88,9 +102,9 @@ The other way round holds too: as long as you upgrade with our released APK, you
 | Message | What to do |
 |---|---|
 | Needs "All files access" | Tap the screen, turn it on in Settings, come back to the App |
-| Game resources were not found | The `data` folder is not at `Download/S2X/D2R Mobile/data`, or has no `.data` archives |
+| Game resources were not found | Choose a readable local folder containing the game archives |
 | The .build.config file is missing | Copy `.build.config` from your game files' `RomFS/data` into `data` too |
-| Game content has not been imported yet | The `android` folder is not at `Download/S2X/D2R Mobile/android`, or was not copied completely |
+| Game content has not been imported yet | Keep the complete prepared `android` folder next to `data`, then select their parent |
 | This import pack does not match this version of the app | Redo step 1 with the source of the same release as the APK |
 | The import did not finish | Usually not enough free space; free about 1 GB and open the App again |
 

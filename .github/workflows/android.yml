@@ -38,6 +38,10 @@ jobs:
           python dm/ios/tests/test_touch_layout_language.py
           python -m unittest discover -s dm/android/tests -p 'test_ci_shell.py'
           python -m unittest discover -s dm/android/tests -p 'test_french.py'
+          python -m unittest discover -s dm/android/tests -p 'test_voice.py'
+          python -m unittest discover -s dm/android/tests -p 'test_game_version.py'
+          javac -d "$RUNNER_TEMP/path-tests" dm/android/app/src/main/java/com/xiaoboluo/d2r/GamePaths.java dm/android/tests/GamePathsTest.java
+          java -cp "$RUNNER_TEMP/path-tests" com.xiaoboluo.d2r.GamePathsTest
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -I dm/android/compat/include -I dm/host dm/host/tests/t_i18n.c dm/host/dm_i18n.c -o "$RUNNER_TEMP/t_i18n"
           for mode in en zh none sysen syses systw sysru sysko sysfr tags game; do "$RUNNER_TEMP/t_i18n" "$mode"; done
           python dm/android/tools/ci_shell.py "$RUNNER_TEMP/dm-gen"
@@ -57,7 +61,7 @@ jobs:
         run: |
           gradle --no-daemon -p dm/android :app:assembleRelease :app:lintRelease \
             -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)" \
-            -PdmVersionCode="$((20100 + GITHUB_RUN_NUMBER))"
+            -PdmVersionCode="$((20110 + GITHUB_RUN_NUMBER))"
           mkdir -p dist
           cp dm/android/app/build/outputs/apk/release/app-release.apk dist/D2RMobile-android.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify dist/D2RMobile-android.apk
@@ -88,17 +92,18 @@ jobs:
         with:
           name: android-${{ needs.android.outputs.commit }}
           path: dist
-      - name: Publish one prerelease per pushed commit
+      - name: Publish one release per pushed commit
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           COMMIT: ${{ needs.android.outputs.commit }}
         run: |
           tag="android-${COMMIT}"
-          printf 'Android build of commit `%s`.\n\nInstall D2RMobile-android.apk and prepare your own game import pack from the source archive of this exact tag. Game content is not included. French text is supported; voice-over falls back to English.\n' "$COMMIT" > notes.md
+          printf 'Android build of commit `%s`.\n\nInstall D2RMobile-android.apk and prepare your own game pack from the source archive of this exact tag. Choose its folder in the app; files are read in place. Game content is not included. French text and French voices are supported when the corresponding audio archives are present.\n' "$COMMIT" > notes.md
           if gh release view "$tag" > /dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
+            gh release edit "$tag" --prerelease=false --latest
           else
             gh release create "$tag" dist/* --target "$COMMIT" \
-              --title "Android ${COMMIT:0:12}" --notes-file notes.md --prerelease --latest=false
+              --title "Android ${COMMIT:0:12}" --notes-file notes.md --latest
           fi

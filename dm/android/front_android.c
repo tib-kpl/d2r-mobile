@@ -34,7 +34,7 @@ void *front_metal_layer(void) { return atomic_load(&g_window); }
 void front_run(void (*guest)(void)) {
     // 观测门在装载后才可订阅；这里沿用 iOS 在 front_run 接入的时机。
     // Observation gates exist only after loading; subscribe at front_run as iOS does.
-    if (front_metal_layer()) {
+    if (front_metal_layer() && !getenv("DM_ORIGINAL_133")) {
         void uimsg_subscribe(void (*)(const char *, const char *, const char *));
         uimsg_subscribe(dm_android_touch_uimsg);
         dm_pad_hook = dm_android_touch_step;

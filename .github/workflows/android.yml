@@ -36,10 +36,7 @@ jobs:
           python dm/ios/tools/dm_i18n.py --check
           python dm/i18n/scan_literals.py
           python dm/ios/tests/test_touch_layout_language.py
-          python -m unittest discover -s dm/android/tests -p 'test_ci_shell.py'
-          python -m unittest discover -s dm/android/tests -p 'test_french.py'
-          python -m unittest discover -s dm/android/tests -p 'test_voice.py'
-          python -m unittest discover -s dm/android/tests -p 'test_game_version.py'
+          python -m unittest discover -s dm/android/tests -p 'test_*.py'
           javac -d "$RUNNER_TEMP/path-tests" dm/android/app/src/main/java/com/xiaoboluo/d2r/GamePaths.java dm/android/tests/GamePathsTest.java
           java -cp "$RUNNER_TEMP/path-tests" com.xiaoboluo.d2r.GamePathsTest
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -I dm/android/compat/include -I dm/host dm/host/tests/t_i18n.c dm/host/dm_i18n.c -o "$RUNNER_TEMP/t_i18n"

@@ -1,7 +1,7 @@
 # Installer D2R Mobile sur Android
 
 Cette branche ajoute les textes français du jeu et du port, les messages Android et
-le choix **Français** dans **Options → Personnalisation**. Appliquez le changement,
+le choix **Français** dans **Options → Personnalisation** du profil 1.0.34. Appliquez le changement,
 puis fermez et relancez l'application. Au premier lancement, le français est choisi
 automatiquement si la langue de l'appareil ou de l'application est le français.
 Les voix françaises sont choisies avec les textes français si leurs archives sont
@@ -14,8 +14,8 @@ anglaises. Les notes d'objets restent réservées au chinois et à l'espagnol.
 1. Téléchargez `D2RMobile-android.apk` depuis les
    [releases de cette branche](https://github.com/tib-kpl/d2r-mobile/releases).
 2. Téléchargez aussi l'archive des sources du **même tag**. Depuis ces sources,
-   préparez votre pack d'import avec vos propres fichiers Switch **1.0.34.0**
-   (avec Reign of the Warlock). La version **1.0.33.0 n'est pas compatible**.
+   préparez votre pack avec vos propres fichiers Switch **1.0.34.0** ou **1.0.33.0**.
+   Le générateur reconnaît les programmes et sélectionne le profil adapté.
 3. Suivez [le guide Android](ANDROID.md) pour les dépendances et la commande
    `py dm/tools/d2rm_android.py <Update> <sortie>` sous Windows.
 4. Sur le stockage interne ou une carte SD, créez un dossier du jeu contenant
@@ -69,8 +69,30 @@ validation en partie sur chaque modèle de console.
 
 ## Version 1.0.33.0
 
-La ROM fournie a été extraite et analysée localement. Les voix françaises sont
-bien présentes. En revanche, le programme principal diffère et les instructions
-attendues aux adresses des correctifs ne correspondent pas. Cette version n'est
-**pas encore prise en charge** : il faut un profil d'adresses et des correctifs
-spécifiques, puis une validation en jeu. Voir [le diagnostic](VERSION_1_0_33.md).
+Le profil **`original133`** fonctionne sur Android avec une **manette physique** :
+boutons, sticks, croix directionnelle et gâchettes. Il conserve l'interface du jeu
+Switch. Les commandes tactiles, la caméra et les améliorations du port liées aux
+adresses de la 1.0.34 sont désactivées. Les options de langue sont celles du jeu
+original ; le français est choisi à la première installation sur un appareil en français.
+Vous pouvez vérifier séparément **Langue des voix** et **Langue des textes** dans
+**Options → Audio**. Ces deux valeurs sont réglées sur **Français** sur l'Odin testée.
+
+La même commande de préparation fonctionne pour les deux versions :
+
+```sh
+python3 dm/tools/d2rm_android.py /chemin/vers/Update /chemin/vers/sortie
+```
+
+Sous Windows, les fichiers 1.0.33 fournis ont été préparés avec **WSL / Ubuntu**.
+Le dossier `Update` doit contenir `ExeFS` et `RomFS`. Pour une extraction avec
+`extract_game.sh`, définissez `DM_GAME_OUT` vers un dossier `Update` distinct afin
+de conserver vos autres versions. Le script accepte les empreintes exactes validées
+par ce fork ; le générateur vérifie aussi les identifiants des trois modules.
+
+Conservez tout `RomFS/data` si vous avez la place : la copie testée occupe environ
+9 Go et contient les voix françaises dans `08-00000001.data` et `08-00000002.data`.
+Les cinématiques ne sont pas décodées dans cet APK et peuvent apparaître en noir ;
+utilisez un bouton pour les passer. Création, déplacement, dialogue, sauvegarde
+et rechargement ont été vérifiés sur Odin 2 Portal avec les fichiers sur carte SD.
+Cela ne constitue pas une validation de tous les actes et de tous les personnages.
+Voir [les essais et les limites](VERSION_1_0_33.md).

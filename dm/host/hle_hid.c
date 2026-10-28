@@ -371,6 +371,17 @@ static void receipt(const NpadState *s, uint32_t id, uint32_t style, uint64_t km
 
 void (*dm_pad_hook)(uint64_t, uint64_t *, int32_t *, int32_t *, int32_t *, int32_t *);
 static void fill(NpadState *s, uint32_t id, uint32_t style) {
+    if (getenv("DM_ORIGINAL_133")) {
+        memset(s, 0, sizeof *s); s->sampling = ++g_sampling;
+        if (!(style_of(id) & style)) return;
+        s->buttons = atomic_load(&g_pad_btn) | atomic_exchange(&g_pad_latch, 0) | (keys_now() & ~(uint64_t)PK_MASK);
+        uint64_t axes = atomic_load(&g_pad_axes);
+        s->lx = (int16_t)axes; s->ly = (int16_t)(axes >> 16);
+        s->rx = (int16_t)(axes >> 32); s->ry = (int16_t)(axes >> 48);
+        s->attributes = ATTR_CONNECTED;
+        return;
+    }
+
     pthread_once(&g_receipt_once, receipt_init);
     DM_PROF(0, "taps", ui_taps_step());
     DM_PROF(0, "ui_frontend", dm_ui_frontend_pump());

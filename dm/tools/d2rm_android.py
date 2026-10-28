@@ -67,6 +67,13 @@ def main():
     try: require_supported(game)
     except (OSError, ValueError) as error: die(str(error))
     dotnet = check_env(game)
+    from game_version import program_profile
+    if program_profile(game) == 'original133':
+        if T != 'android': die('The original133 profile currently supports Android only')
+        from original133 import prepare
+        prepare(game, dst, dotnet)
+        return
+
     P = open(os.path.join(DM, 'PRODUCT')).readline().strip()
     romfs = os.path.join(game, 'RomFS'); stage = os.path.join(ROOT, 'build', 'pack', T); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
     final = os.path.join(dst, 'android') if T == 'android' else os.path.join(dst, 'harmony', 'dm')
@@ -145,7 +152,7 @@ def main():
 
     # 五、放到输出目录：先写在旁边，齐了再换上（中途失败不留半份）
     # 5. Put it in the output directory: write it alongside first and swap it in once complete (a failure halfway leaves no half copy)
-    with open(os.path.join(stage, 'pack_info.txt'), 'w', encoding='utf-8', newline='\n') as f: f.write('PRODUCT=%s\nTARGET=%s\nMADE=%s\n' % (P, T, time.strftime('%Y-%m-%dT%H:%M:%S')))
+    with open(os.path.join(stage, 'pack_info.txt'), 'w', encoding='utf-8', newline='\n') as f: f.write('PRODUCT=%s\nTARGET=%s\nPROFILE=enhanced134\nMADE=%s\n' % (P, T, time.strftime('%Y-%m-%dT%H:%M:%S')))
     part = final + '.part'
     shutil.rmtree(part, ignore_errors=True); os.makedirs(part)
     for x in ('out', 'shaders', 'overlay') + (('ui-art',) if T == 'ohos' else ()): shutil.copytree(os.path.join(stage, x), os.path.join(part, x))

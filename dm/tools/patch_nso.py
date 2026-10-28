@@ -174,6 +174,14 @@ if RULE_RUN:
     import hashlib
     assert BUILD_ID == RULE_BUILD, f'Run规则构建号不符 {BUILD_ID}'
     RULE_ORIG_SHA = hashlib.sha256(IMG).hexdigest()
+# Original controller profile: verified 1.0.33 offline entry points only.
+# No 1.0.34 touch/gameplay addresses are used by this profile.
+CUTS['194361731c7b9f30b38425b244429e25'] = [
+    (0x19741c, 'e8a79f1a', 'e8d79f1a', 'Offline window: last-online age comparison, same operation as the 1.0.34 profile'),
+    (0x1d4ad9f, '55736572204c617374204f6e6c696e6500', '566f6963654c616e677561676500000000', 'Offline settings lookup: use the existing VoiceLanguage setting'),
+]
+if BUILD_ID == '194361731c7b9f30b38425b244429e25' and RULESET != 'native':
+    raise SystemExit('Switch 1.0.33 requires the original controller profile (DM_RULESET=native)')
 cuts = list(CUTS.get(BUILD_ID, []))
 # 触屏版规则域默认同时带宿主私有门；规则闸门可显式关闭，保留同一出包入口和规则域。
 # The touchscreen rule domain by default also carries the host-private gates; the rule gate check can turn them off explicitly, keeping the same packaging entry point and rule domain.

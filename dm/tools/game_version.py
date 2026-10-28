@@ -10,6 +10,7 @@ SUPPORTED = {
     'subsdk0': '507f19d1240d09d00992248e8a0fd77e',
 }
 PREVIOUS_MAIN = '194361731c7b9f30b38425b244429e25'
+ORIGINAL_133 = dict(SUPPORTED, main=PREVIOUS_MAIN)
 
 
 def inspect_update(update):
@@ -27,9 +28,13 @@ def require_supported(update):
     found = inspect_update(update)
     if found == SUPPORTED:
         return found
-    if found['main'] == PREVIOUS_MAIN:
-        raise ValueError('Switch 1.0.33.0 detected. Its main program uses different addresses and needs a separate porting profile. This build supports 1.0.34.0; changing the version label or disabling this check cannot make 1.0.33.0 compatible.')
+    if found == ORIGINAL_133:
+        return found
     raise ValueError('Unsupported program build IDs: ' + ', '.join(f'{name}={value}' for name, value in found.items()))
+
+
+def program_profile(update):
+    return 'original133' if require_supported(update) == ORIGINAL_133 else 'enhanced134'
 
 
 if __name__ == '__main__':
@@ -38,6 +43,6 @@ if __name__ == '__main__':
         found = inspect_update(sys.argv[1])
         for name, value in found.items(): print(f'{name}: {value}')
         require_supported(sys.argv[1])
-        print('Supported Switch 1.0.34.0 program set')
+        print('Supported profile: ' + program_profile(sys.argv[1]))
     except (OSError, ValueError) as error:
         raise SystemExit(str(error))

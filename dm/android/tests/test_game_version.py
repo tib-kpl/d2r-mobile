@@ -7,7 +7,7 @@ import tempfile
 import unittest
 DM = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(DM / 'tools'))
-from game_version import PREVIOUS_MAIN, SUPPORTED, require_supported
+from game_version import PREVIOUS_MAIN, SUPPORTED, ORIGINAL_133, require_supported, program_profile
 
 
 class Versions(unittest.TestCase):
@@ -18,8 +18,14 @@ class Versions(unittest.TestCase):
                 data = bytearray(0x60); data[:4] = b'NSO0'; data[0x40:0x50] = bytes.fromhex(value)
                 (root / 'ExeFS' / name).write_bytes(data)
             self.assertEqual(require_supported(root), SUPPORTED)
+            self.assertEqual(program_profile(root), 'enhanced134')
             main = root / 'ExeFS/main'; data = bytearray(main.read_bytes()); data[0x40:0x50] = bytes.fromhex(PREVIOUS_MAIN); main.write_bytes(data)
-            with self.assertRaisesRegex(ValueError, '1.0.33.0 detected'): require_supported(root)
+            self.assertEqual(require_supported(root), ORIGINAL_133)
+            self.assertEqual(program_profile(root), 'original133')
+            sdk = root / 'ExeFS/sdk'; original_sdk = sdk.read_bytes()
+            sdk.write_bytes(original_sdk[:0x40] + bytes(16) + original_sdk[0x50:])
+            with self.assertRaisesRegex(ValueError, 'Unsupported'): require_supported(root)
+            sdk.write_bytes(original_sdk)
             data[0x40:0x50] = b'\0' * 16; main.write_bytes(data)
             with self.assertRaisesRegex(ValueError, 'Unsupported'): require_supported(root)
 

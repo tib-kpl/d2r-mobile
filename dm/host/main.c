@@ -26,6 +26,7 @@ void crash_sample_self(void);
 // so a newly created character is first committed only after about 30 seconds, and if the process is ended before that (being reclaimed by the system after switching away is normal on a phone) the character is gone. Changed to 3 seconds.
 // Only non-forced writes are affected (new character, key bindings, rename); in-run character saves, settings etc. are forced writes anyway and do not go through the throttle. DM_SAVE_THROTTLE=seconds can change it (30 = the original game).
 static void save_throttle_patch(void) {
+    if (getenv("DM_ORIGINAL_133")) return;
     const char *v = getenv("DM_SAVE_THROTTLE"); int sec = v ? atoi(v) : 3;
     module_t *m = NULL;
     for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) m = &g_mod[i];
@@ -43,6 +44,7 @@ static void save_throttle_patch(void) {
 // Game creation 0x5d0bd0 checks at 0x5d297c whether it ≠ -1 and then uses {N, 666} as the seed (stored at Game+0x1b8), otherwise takes the system clock. Written directly into the data segment, no cut;
 // placed after each module's init_array and before nnMain, so that global constructors do not overwrite it. The original value is asserted before writing, and a build ID mismatch reports a failure and aborts.
 static void game_seed_maybe(void) {
+    if (getenv("DM_ORIGINAL_133")) return;
     const char *v = getenv("DM_GAME_SEED");
     if (!v) return;
     module_t *m = NULL;
@@ -76,7 +78,7 @@ static void guest_main(void) {
     ((fnp)req("_ZN2nn2os11SetHostArgvEPPc"))(g_argv);
     game_seed_maybe(); save_throttle_patch();
     { void dm_guest_spawn_selftest(void); dm_guest_spawn_selftest(); }   // DM_GUEST_SPAWN_TEST 宿主客体线程自检（hle_guestthread.c） | DM_GUEST_SPAWN_TEST self-test of host-created guest threads (hle_guestthread.c)
-    { void dm_padmode_boot(void); dm_padmode_boot(); }   // 触屏覆盖层在：布局前缀改指触屏版（dm_padmode.c），要在游戏建面板之前 | Touch overlay present: repoint the layout prefixes to the touch version (dm_padmode.c); must happen before the game builds its panels
+    { void dm_padmode_boot(void); if (!getenv("DM_ORIGINAL_133")) dm_padmode_boot(); }   // 触屏覆盖层在：布局前缀改指触屏版（dm_padmode.c），要在游戏建面板之前 | Touch overlay present: repoint the layout prefixes to the touch version (dm_padmode.c); must happen before the game builds its panels
     LOG(">>> nnMain"); ((fn0)req("nnMain"))();
     LOG("nnMain returned");
 }
@@ -153,10 +155,10 @@ static void host_preload(int argc, char **argv) {
     if (!n) { names[n++] = "main"; names[n++] = "sdk"; }
     load_modules(argv[1], names, n);
     uint64_t ta = now_ns();
-    probe_install();   // DM_PROBE 探针（诊断用） | DM_PROBE probes (for diagnostics)
-    ticks_install();   // DM_TICKS 逐拍状态哈希（拍入口观测门） | DM_TICKS per-tick state hash (tick-entry observation gate)
-    { void target_rank_install(void); target_rank_install(); }   // 触屏版自动选怪 Boss > 精英 > 普通（hle_target.c） | Touch version auto-targeting Boss > elite > normal (hle_target.c)
-    hid_keys_init();   // DM_KEYS 脚本输入（按 UI 消息驱动的步骤要在消息出现前订阅） | DM_KEYS scripted input (steps driven by UI messages must subscribe before the message appears)
+    if (!getenv("DM_ORIGINAL_133")) probe_install();   // DM_PROBE 探针（诊断用） | DM_PROBE probes (for diagnostics)
+    if (!getenv("DM_ORIGINAL_133")) ticks_install();   // DM_TICKS 逐拍状态哈希（拍入口观测门） | DM_TICKS per-tick state hash (tick-entry observation gate)
+    { void target_rank_install(void); if (!getenv("DM_ORIGINAL_133")) target_rank_install(); }   // 触屏版自动选怪 Boss > 精英 > 普通（hle_target.c） | Touch version auto-targeting Boss > elite > normal (hle_target.c)
+    if (!getenv("DM_ORIGINAL_133")) hid_keys_init();   // DM_KEYS 脚本输入（按 UI 消息驱动的步骤要在消息出现前订阅） | DM_KEYS scripted input (steps driven by UI messages must subscribe before the message appears)
     uint64_t tb = now_ns();
     tact_chk_init();                // DM_TACTCHK 逐块记录（到选角停记） | DM_TACTCHK per-block log (logging stops at character select)
     tact_prefetch_start(argv[1]);   // 启动块后台预解码（缺省开：产物目录 bootlist.tsv；DM_TACT_PREFETCH=0 关） | Background pre-decode of boot blocks (on by default: bootlist.tsv in the build output directory; DM_TACT_PREFETCH=0 turns it off)

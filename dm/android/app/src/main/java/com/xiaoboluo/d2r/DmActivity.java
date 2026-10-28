@@ -43,6 +43,17 @@ import java.nio.file.Files;
 import java.util.Locale;
 
 public class DmActivity extends Activity implements SurfaceHolder.Callback, DisplayManager.DisplayListener {
+    private boolean original133;
+    static native void nativePad(long buttons, int lx, int ly, int rx, int ry);
+    private final GamepadInput gamepad = new GamepadInput(DmActivity::nativePad);
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (started && inputDialog == null && gameFrame.getParent() != null && gamepad.key(event)) return true;
+        return super.dispatchKeyEvent(event);
+    }
+    @Override public boolean onGenericMotionEvent(android.view.MotionEvent event) {
+        if (started && inputDialog == null && gameFrame.getParent() != null && gamepad.motion(event)) return true;
+        return super.onGenericMotionEvent(event);
+    }
     static native int nativeStart(String filesDir, String extDir, String romfsSrc, String lang, String runtimeDir);
     static native void nativeSurface(Object surface, int w, int h);
     static native void nativeRefresh(float hz);
@@ -219,15 +230,24 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         if (runtime == null) { showFolderScreen(getString(R.string.dmAndroidPreparedPackRequired)); return; }
         String info = readText(new File(runtime, "pack_info.txt"));
         if (info != null && !BuildConfig.DM_PRODUCT.equals(packProduct(info))) { showFolderScreen(getString(R.string.dmAndroidImportVersion, packProduct(info))); return; }
+        String profile = null;
+        if (info != null) for (String line : info.split("\n")) if (line.startsWith("PROFILE=")) profile = line.substring(8).trim();
+        if (profile != null && !profile.equals("enhanced134") && !profile.equals("original133")) {
+            showStartError(getString(R.string.dmAndroidStartFailed, -11)); return;
+        }
+        original133 = "original133".equals(profile);
         if (gameFrame.getParent() == null) setContentView(gameFrame);
         if (!libraryLoaded) {
             // 原生构造函数与 JNI 共用选定目录，不导入另一份。
             // Native constructors and JNI share the selected runtime without importing another copy.
-            try { Os.setenv("DM_DERIVED", new File(runtime, "derived.tsv").getAbsolutePath(), true); } catch (ErrnoException e) { showStartError(getString(R.string.dmAndroidStorage)); return; }
+            try {
+                if (original133) Os.setenv("DM_ORIGINAL_133", "1", true); else Os.unsetenv("DM_ORIGINAL_133");
+                Os.setenv("DM_DERIVED", new File(runtime, "derived.tsv").getAbsolutePath(), true);
+            } catch (ErrnoException e) { showStartError(getString(R.string.dmAndroidStorage)); return; }
             try { System.loadLibrary("dm"); libraryLoaded = true; }
             catch (UnsatisfiedLinkError error) { showStartError(getString(R.string.dmAndroidLibrary)); return; }
         }
-        if (touchOverlay == null) {
+        if (!original133 && touchOverlay == null) {
             int[] gameIds = {R.string.dmAndroidAttack, R.string.dmAndroidSkill1, R.string.dmAndroidSkill2, R.string.dmAndroidSkill3, R.string.dmAndroidSkill4,
                 R.string.dmAndroidPortal, R.string.dmAndroidPotion1, R.string.dmAndroidPotion2, R.string.dmAndroidPotion3, R.string.dmAndroidPotion4,
                 R.string.dmAndroidMenu, R.string.dmAndroidMap, R.string.dmAndroidMove, R.string.dmAndroidSwap, R.string.dmAndroidDifficulty};
@@ -266,8 +286,9 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
             showStartError(resource == 0 ? getString(R.string.dmAndroidStartFailed, result) : getString(resource)); return;
         }
         started = true;
+        if (original133) { nativeFocus(3); return; }
         touchOverlay.setInputEnabled(true);
-        if (camSensor != null) camSensor.start(nativeCamSensor());
+        if (!original133 && camSensor != null) camSensor.start(nativeCamSensor());
         // 越肩镜头的左右转按钮：盖在触屏层上面，只收按钮上的触摸。镜头可以在局中从「自定义」页打开（dm_cam.c dm_cam_mode），所以总是加上：
         // 镜头没在出图时按钮不画、触摸全部漏给下面的触屏层（nativeCamActive，每帧问一次）
         // Turn buttons of the over-the-shoulder camera: above the touch layer, taking only touches on the buttons. The camera can be turned on mid-game from
@@ -389,6 +410,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     }
 
     private void releaseTouches() {
+        if (libraryLoaded) gamepad.reset();
         if (touchOverlay != null) touchOverlay.cancelTouches();
         if (started) nativeTouch(0, new int[0], new float[0], new float[0]);
     }
@@ -399,7 +421,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     @Override public void onDisplayAdded(int id) { updateRefresh(); }
     @Override public void onDisplayRemoved(int id) { updateRefresh(); }
     @Override public void onDisplayChanged(int id) { updateRefresh(); }
-    @Override protected void onResume() { super.onResume(); resumed = true; immersive(); startHost(); updateRefresh(); if (started) { nativeFocus(3); if (touchOverlay != null && bootFailure == 0) touchOverlay.setInputEnabled(true); if (camSensor != null) camSensor.start(nativeCamSensor()); if (camButtons != null) camButtons.start(); if (camThreats != null) camThreats.start(); } }
+    @Override protected void onResume() { super.onResume(); resumed = true; immersive(); startHost(); updateRefresh(); if (started) { nativeFocus(3); if (touchOverlay != null && bootFailure == 0) touchOverlay.setInputEnabled(true); if (!original133 && camSensor != null) camSensor.start(nativeCamSensor()); if (camButtons != null) camButtons.start(); if (camThreats != null) camThreats.start(); } }
     @Override protected void onPause() { resumed = false; if (camSensor != null) camSensor.stop(); if (camButtons != null) camButtons.stop(); if (camThreats != null) camThreats.stop(); if (inputDialog != null) inputDialog.dismiss(); releaseTouches(); if (touchOverlay != null) touchOverlay.setInputEnabled(false); if (started) nativeFocus(0); super.onPause(); }
     @Override protected void onStart() { super.onStart(); if (started) nativeFocus(2); }
     @Override protected void onStop() { if (started) nativeFocus(1); com.xiaoboluo.d2r.widget.HeroWidgetProvider.requestUpdate(this); super.onStop(); }

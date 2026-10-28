@@ -302,6 +302,7 @@ void dm_3d_scale_hot(int hot) { (void)hot; }   // 过热不再直接降档（改
 static _Atomic float g_scale3d_cur = 1.0f;
 float dm_3d_scale_cur(void) { return atomic_load(&g_scale3d_cur); }
 static void scale3d_tick(void) {
+    if (getenv("DM_ORIGINAL_133")) return;
     static float want_cfg = -1, cur = 1.0f; static module_t *main;
     if (want_cfg < 0) {
         want_cfg = s3_cfg();

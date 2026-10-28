@@ -11,12 +11,16 @@
   nécessaire. Les sauvegardes et caches restent dans le stockage de l'application.
 - **Releases Android automatiques** : chaque push de branche construit, vérifie et
   publie un APK signé ainsi que `SHA256SUMS` dans une release normale, liée au commit.
+- **Switch 1.0.33.0 sur Android** : profil dédié avec l'interface originale et une
+  manette physique, adapté notamment à l'Odin 2. Création de personnage, camp,
+  déplacement, dialogue, sauvegarde et rechargement testés sur Odin 2 Portal.
 - **Documentation française** : [installation Android et fonctionnement du fork](docs/ANDROID.fr.md).
 
-**Compatibilité du jeu : Switch 1.0.34.0.** La 1.0.33.0 fournie a été analysée : son
-programme principal utilise un autre jeu d'adresses. Elle nécessite un profil de
-portage distinct et **n'est pas encore prise en charge**. Le contrôle de version
-reste actif et explique ce cas avant la préparation du pack.
+**Compatibilité Android : Switch 1.0.34.0 et 1.0.33.0.** La 1.0.34 conserve les
+améliorations tactiles du port. La 1.0.33 utilise son propre profil `original133`,
+sans commandes tactiles ni améliorations du port qui dépendent de la 1.0.34.
+Les cinématiques ne sont pas décodées dans l'APK actuel ; une séquence noire peut
+être passée avec un bouton. Voir [les limites et essais de la 1.0.33](docs/VERSION_1_0_33.md).
 
 ---
 

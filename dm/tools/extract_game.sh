@@ -13,27 +13,26 @@
 #   (the common "1G+1U" form for .xci) or as separate packages (one .nsp for the base game, one for the update). Title keys are taken from the tickets (.tik) in eShop-style .nsp files; no title.keys needed.
 #   prod.keys: the key file dumped from your own console, given last. Everything is only read on this machine; nothing is copied or uploaded.
 # Output: $DM_ROOT/data/switch/3.3.94012/Update/{ExeFS,RomFS} (DM_ROOT defaults to ~/dm-work). An existing directory is not overwritten.
+# For the recognized 1.0.33 Android profile, set DM_GAME_OUT to a separate Update directory.
 # Requires: hactool (an open-source tool for unpacking Switch files, https://github.com/SciresM/hactool ; build it with make following its instructions).
 #   Put it on PATH, or point this script at it with HACTOOL=<path>. Keep about 20 GB of disk free (9 GB of intermediate files, deleted automatically when done).
 set -u
 [ $# -ge 2 ] || { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
-KEYS=${!#}; PKGS=("${@:1:$#-1}"); DM_ROOT=${DM_ROOT:-$HOME/dm-work}; OUT=$DM_ROOT/data/switch/3.3.94012/Update
+KEYS=${!#}; PKGS=("${@:1:$#-1}"); DM_ROOT=${DM_ROOT:-$HOME/dm-work}; OUT=${DM_GAME_OUT:-$DM_ROOT/data/switch/3.3.94012/Update}
 die() { echo "✗ $*" >&2; exit 1; }
 HT=${HACTOOL:-$(command -v hactool || true)}; [ -n "$HT" ] && [ -x "$HT" ] || die "没找到 hactool：装好后放进 PATH，或设 HACTOOL=<路径>（见本文件开头） | hactool not found: install it and put it on PATH, or set HACTOOL=<path> (see the top of this file)"
 for PKG in "${PKGS[@]}"; do [ -f "$PKG" ] || die "没有这个游戏包 | no such game package: $PKG"; done; [ -f "$KEYS" ] || die "没有这个密钥文件 | no such key file: $KEYS"
 [ ! -e "$OUT" ] || die "已有 ${OUT}，不覆盖。要重做先自己把它移走 | ${OUT} already exists and is not overwritten; move it away yourself to redo the extraction"
-# hactool 只从 $HOME/.switch/title.keys 读标题密钥：给它一个临时 HOME，里面的 title.keys = 你原有的那份 + 从票据取的，不动你自己的 ~/.switch。
-# 这个 HOME 单独建在系统临时目录里，只有你自己能读，密钥不进工作区；9 GB 的中间文件仍在工作区
-# hactool only reads title keys from $HOME/.switch/title.keys: give it a temporary HOME whose title.keys = your existing one + the keys taken from the tickets, leaving your own ~/.switch untouched.
-# That HOME is created on its own in the system temporary folder and only you can read it, so keys never land in the workspace; the 9 GB of intermediate files stay in the workspace
-ht() { HOME="$KH" "$HT" -k "$KEYS" --disablekeywarns --suppresskeys "$@"; }
+# hactool uses a private XDG configuration directory for temporary title keys.
+# HOME and the player's original key files are left unchanged.
+ht() { XDG_CONFIG_HOME="$KH" "$HT" -k "$KEYS" --disablekeywarns --suppresskeys "$@"; }
 T=$DM_ROOT/build/cache/dm/extract.$$; KH=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/dm-keys.XXXXXX") || die "建不了放密钥的临时目录 | cannot create the temporary folder for the keys"
-trap 'rm -rf "$T" "$KH"' EXIT; mkdir -p "$T/nca" "$KH/.switch" || die "建不了中间目录 $T | cannot create the intermediate folder $T"
-TK=$KH/.switch/title.keys
+trap 'rm -rf "$T" "$KH"' EXIT; mkdir -p "$T/nca" "$KH/switch" || die "建不了中间目录 $T | cannot create the intermediate folder $T"
+TK=$KH/switch/title.keys
 if [ -f "$HOME/.switch/title.keys" ]; then
   cat "$HOME/.switch/title.keys" > "$TK"; [ -z "$(tail -c1 "$TK")" ] || echo >> "$TK"   # 原文件末尾没换行时补一个，免得下面接上的票据密钥并进它的最后一行 | add a newline if the file does not end with one, so the ticket keys appended below do not join its last line
 fi
-ln -s "$(cd "$(dirname "$KEYS")" && pwd)/$(basename "$KEYS")" "$KH/.switch/prod.keys"   # 只是链接，免得 hactool 报「prod.keys 不存在」盖住真正的错 | only a link, so hactool does not warn "prod.keys does not exist" over the real error
+ln -s "$(cd "$(dirname "$KEYS")" && pwd)/$(basename "$KEYS")" "$KH/switch/prod.keys"   # 只是链接，免得 hactool 报「prod.keys 不存在」盖住真正的错 | only a link, so hactool does not warn "prod.keys does not exist" over the real error
 say() { echo "[$(date +%T)] $*"; }
 # 拆不开时：hactool 嫌某一行密钥长度不对，报的是那行的值（一个密钥）。不把值打出来，按值找回是哪个文件的哪个键：prod.keys，或标题密钥（你的 ~/.switch/title.keys 加票据里取的）
 # When unpacking fails: if hactool rejects a key line for its length it reports that line's value (a key). Don't print the value; find by it which key of which file it is: prod.keys, or the title keys (your ~/.switch/title.keys plus those taken from the tickets)
@@ -97,17 +96,22 @@ mkdir -p "$OUT.part" || die "建不了 | cannot create $OUT.part"
 ht -t nca --basenca="$BASE" --exefsdir="$OUT.part/ExeFS" --romfsdir="$OUT.part/RomFS" "$UPD" > "$T/extract.log" 2>&1 || { rm -rf "$OUT.part"; die "更新内容取不出来 | cannot extract the update content: $(hterr "$T/extract.log")"; }
 
 # 版本核对：三个程序文件的校验值必须是 3.3.94012 的
-# Version check: the checksums of the three program files must be those of 3.3.94012
+# Version check: require one of the exact program sets validated by this fork.
 ok=1
+got=$(shasum -a 256 "$OUT.part/ExeFS/main" 2> /dev/null | cut -c1-64)
+case "$got" in
+  55fd909bb7230b002357e5b0d8499c11f06888f345c49e69eb4734df44a27d0e) say "Profile: enhanced134";;
+  fca997923183f9bf35ec423462d09ce974ca9acd424b6ddb586f67b41859335e) say "Profile: original133 (Android controller UI)";;
+  *) echo "Unsupported main program: ${got:-missing}"; ok=0;;
+esac
 while read -r want name; do
   got=$(shasum -a 256 "$OUT.part/ExeFS/$name" 2> /dev/null | cut -c1-64)
-  if [ "$got" = "$want" ]; then echo "  ✓ $name"; else echo "  ✗ $name 不是 3.3.94012 的 | is not the 3.3.94012 one (${got:-文件不在 | file missing})"; ok=0; fi
+  if [ "$got" = "$want" ]; then echo "  OK $name"; else echo "  Unsupported $name (${got:-missing})"; ok=0; fi
 done <<SUMS
-55fd909bb7230b002357e5b0d8499c11f06888f345c49e69eb4734df44a27d0e main
 1c9f198a91c0bcfee5cf8f5b53fb941895e91334dfb766ce79fc68576797f017 sdk
 67a38fcf89cd13e040a021eb3d157072f38ebf6680a907874c35c7b231b5d4e2 subsdk0
 SUMS
 [ -f "$OUT.part/RomFS/data/build_manifest.psv" ] || { echo "  ✗ 资源里没有 | the assets have no data/build_manifest.psv"; ok=0; }
-[ "$ok" = 1 ] || { rm -rf "$OUT.part"; die "版本不对：游戏包里的更新不是 3.3.94012 | wrong version: the update in the game packages is not 3.3.94012"; }
+[ "$ok" = 1 ] || { rm -rf "$OUT.part"; die "Unsupported program set or missing game resources"; }
 mv "$OUT.part" "$OUT" || die "改名到 $OUT 没成 | renaming to $OUT failed"
-say "好了：${OUT}。接着在仓库根目录运行 ./setup.sh | done: ${OUT}. Next, run ./setup.sh in the repository root"
+say "Done: ${OUT}. Android: python3 dm/tools/d2rm_android.py ${OUT} <output>"

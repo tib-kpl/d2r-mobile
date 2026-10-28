@@ -20,7 +20,7 @@ The release page has an **APK that contains no game content**. Prepare a game pa
 
 ## What you need
 
-- The files of the game you bought: `ExeFS` and `RomFS` of the Switch version 1.0.34.0 (PC 3.3.94012); see [GAME_FILES.md](GAME_FILES.md)
+- Your own `ExeFS` and `RomFS`: Switch 1.0.34.0 (enhanced touch profile) or 1.0.33.0 (Android original UI, physical controller required). See [GAME_FILES.md](GAME_FILES.md) and [1.0.33 limits](VERSION_1_0_33.md).
 - The source of this repository **from the same release as the APK** (the App checks and tells you if they differ)
 - Python 3.9 or later with these packages: `python3 -m pip install pillow numpy lz4 capstone unicorn`
 - The .NET SDK (to build the shader translation tool): <https://dotnet.microsoft.com/download>
@@ -37,7 +37,7 @@ From the repository root:
 python3 dm/tools/d2rm_android.py <game files directory> <output directory>
 ```
 
-`<game files directory>` is the `Update` directory of the Switch version 3.3.94012 (with `ExeFS` and `RomFS` in it). The tool rewrites the game program for Android, extracts and translates every shader, generates the touch overlay and a few data tables, and writes `<output directory>/android/`:
+`<game files directory>` is the recognized game's `Update` directory with `ExeFS` and `RomFS`. The tool selects the matching profile, rewrites the program and translates its shaders. Version 1.0.34 also generates the touch overlay and data tables. Version 1.0.33 uses the original controller UI and has no overlay. Both write `<output directory>/android/`:
 
 ```
 android/out/          the rewritten game program and its tables
@@ -79,8 +79,10 @@ after fully closing and reopening the app.
 
 French UI selects French voices only when every archive recorded for French in
 the prepared pack is readable; otherwise it uses English voices. Regenerate older
-packs to include the voice metadata. Switch 1.0.33.0 is still unsupported; see
-[the compatibility audit](VERSION_1_0_33.md).
+packs to include the voice metadata. Switch 1.0.33.0 uses the `original133` profile;
+its generator was tested under WSL/Ubuntu and its runtime on Odin 2 Portal.
+See [the compatibility tests and limits](VERSION_1_0_33.md). This APK does not decode
+cinematics: skip black movie sequences with a controller button.
 
 ## Moving to a new release
 

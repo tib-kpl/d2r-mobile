@@ -15,6 +15,7 @@
 #include "../host/dm.h"
 #include "../host/front.h"
 #include "../host/hle.h"
+#include "../host/dm_input.h"
 #include <android/log.h>
 #include <android/native_window_jni.h>
 #include <dirent.h>
@@ -168,7 +169,19 @@ JNIEXPORT jint JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeStart(JNIEnv *env
     char p[1200]; snprintf(g_runtime, sizeof g_runtime, "%s", rt);
     (*env)->ReleaseStringUTFChars(env, runtime, rt);
     log_init();
+    int original133 = getenv("DM_ORIGINAL_133") != NULL;
     load_env_file(g_runtime);
+    if (original133) setenv("DM_ORIGINAL_133", "1", 1); else unsetenv("DM_ORIGINAL_133");
+    // The Java launcher sets the profile before loading the native library.
+    if (original133) {
+        setenv("DM_STASH_SEED", "0", 1);
+        setenv("DM_BRIGHT_K", "1", 1);
+        setenv("DM_PERF_FILE", "0", 1);
+        setenv("DM_3D_SCALE_DYN", "0", 1);
+        setenv("DM_3D_SCALE_GPU", "0", 1);
+        unsetenv("DM_ROMFS_OVERLAY");
+    }
+
     LOG("boot: 内部目录 %s，外部目录 %s，资源 %s，系统语言 %s", g_files, g_ext, g_src, lg);
     char romfs[1100], save[1100], temp[1100];
     snprintf(romfs, sizeof romfs, "%s/romfs", g_files); snprintf(save, sizeof save, "%s/save", g_files); snprintf(temp, sizeof temp, "%s/temp", g_files);
@@ -301,18 +314,21 @@ JNIEXPORT jint JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeStart(JNIEnv *env
         if (len > 4 && !strcmp(entry->d_name + len - 4, ".xgs")) { have_shader = 1; break; }
     } closedir(shaders); }
     if (!have_shader) { LOG("boot: no shader bundles in %s", required); return -4; }
-    snprintf(required, sizeof required, "%s/overlay", g_runtime);
-    // 启动前核必需覆盖层；旧资源不能自动补指纹，也不能带着错误资源进入游戏。
-    // Validate the required overlay before starting; never stamp old resources or enter with mismatched content.
-    char overlay_reason[256];
-    dm_overlay_result overlay = dm_overlay_validate(required, DM_OVERLAY_SOURCE_SHA256, overlay_reason, sizeof overlay_reason);
-    if (overlay == DM_OVERLAY_OK) overlay = dm_overlay_require_touch_art(required, overlay_reason, sizeof overlay_reason);
-    if (overlay != DM_OVERLAY_OK) {
-        LOG("boot: overlay rejected (%d): %s", overlay, overlay_reason);
-        return overlay == DM_OVERLAY_MISSING ? -9 : -10;
+    if (!getenv("DM_ORIGINAL_133")) {
+        snprintf(required, sizeof required, "%s/overlay", g_runtime);
+        // 启动前核必需覆盖层；旧资源不能自动补指纹，也不能带着错误资源进入游戏。
+        // Validate the required overlay before starting; never stamp old resources or enter with mismatched content.
+        char overlay_reason[256];
+        dm_overlay_result overlay = dm_overlay_validate(required, DM_OVERLAY_SOURCE_SHA256, overlay_reason, sizeof overlay_reason);
+        if (overlay == DM_OVERLAY_OK) overlay = dm_overlay_require_touch_art(required, overlay_reason, sizeof overlay_reason);
+        if (overlay != DM_OVERLAY_OK) {
+            LOG("boot: overlay rejected (%d): %s", overlay, overlay_reason);
+            return overlay == DM_OVERLAY_MISSING ? -9 : -10;
+        }
+        LOG("boot: overlay verified source=%s", DM_OVERLAY_SOURCE_SHA256);
+        setenv("DM_ROMFS_OVERLAY", required, 1);
     }
-    LOG("boot: overlay verified source=%s", DM_OVERLAY_SOURCE_SHA256);
-    setenv("DM_ROMFS_OVERLAY", required, 1);
+    LOG("boot: profile=%s", original133 ? "original133" : "enhanced134");
     if (!lifecycle_ready()) return -8;
     pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 8u << 20);
     pthread_t th; int rc = pthread_create(&th, &a, host_thread, NULL); pthread_attr_destroy(&a);
@@ -380,4 +396,8 @@ JNIEXPORT void JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativeFocus(JNIEnv *env
         dm_lifecycle_post(&g_lifecycle, ev);
         __android_log_print(ANDROID_LOG_INFO, "dm-lifecycle", "UI posted event=%d", ev);
     }
+}
+
+JNIEXPORT void JNICALL Java_com_xiaoboluo_d2r_DmActivity_nativePad(JNIEnv *env, jclass cls, jlong buttons, jint lx, jint ly, jint rx, jint ry) {
+    (void)env; (void)cls; dm_pad_set((uint64_t)buttons, lx, ly, rx, ry);
 }

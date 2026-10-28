@@ -45,9 +45,16 @@ pas à celle de l'application. Le jeu est hors ligne, sans multijoueur.
 
 Le workflow `.github/workflows/android.yml` compile un APK ARM64 et exécute les
 contrôles à chaque push de branche. Chaque push réussi publie une **release normale**
-`android-<SHA complet du commit>` avec l'APK signé et `SHA256SUMS`. Un push de plusieurs
-commits construit le dernier commit de ce push. Les tags de release ne relancent
-pas le workflow. Une relance du même commit met à jour ses fichiers de release.
+`v<majeur>.<mineur>.<numéro d'exécution>` avec l'APK signé et `SHA256SUMS`.
+Par exemple : **Android 2.2.7**, tag **v2.2.7**, puis **2.2.8**. La version de l'APK
+utilise le même numéro. Le fichier `VERSION` définit le préfixe majeur/mineur ; le
+dernier nombre vient de GitHub Actions et augmente automatiquement. Des numéros
+peuvent être sautés lorsqu'un build échoue ou qu'une pull request est vérifiée.
+Les anciennes releases nommées avec un commit restent disponibles.
+Un push de plusieurs commits construit le dernier commit de ce push. Les tags
+de release ne relancent pas le workflow. Relancer la même exécution conserve son
+numéro et met à jour ses fichiers. Le workflow refuse de réutiliser un numéro
+attribué à un autre commit.
 Les pull requests compilent et vérifient un APK de débogage, sans publication et
 sans accès aux clés de signature. Le workflow peut aussi être lancé manuellement.
 

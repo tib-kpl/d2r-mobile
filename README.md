@@ -10,7 +10,8 @@
   Le dossier `android` reste à côté de `data` : aucune copie interne du pack n'est
   nécessaire. Les sauvegardes et caches restent dans le stockage de l'application.
 - **Releases Android automatiques** : chaque push de branche construit, vérifie et
-  publie un APK signé ainsi que `SHA256SUMS` dans une release normale, liée au commit.
+  publie un APK signé ainsi que `SHA256SUMS` dans une release normale numérotée
+  (`v2.2.7`, `v2.2.8`…). Le même numéro apparaît dans la version Android de l'APK.
 - **Switch 1.0.33.0 sur Android** : profil dédié avec l'interface originale et une
   manette physique, adapté notamment à l'Odin 2. Création de personnage, camp,
   déplacement, dialogue, sauvegarde et rechargement testés sur Odin 2 Portal.

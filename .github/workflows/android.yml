@@ -13,6 +13,10 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      commit: ${{ github.sha }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -22,6 +26,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Determine Android release version
+        id: version
+        run: |
+          python -m unittest discover -s ci -p 'test_*.py'
+          python ci/version.py
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.8.1'
@@ -58,7 +67,8 @@ jobs:
         run: |
           gradle --no-daemon -p dm/android :app:assembleRelease :app:lintRelease \
             -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)" \
-            -PdmVersionCode="$((20110 + GITHUB_RUN_NUMBER))"
+            -PdmVersionCode="${{ steps.version.outputs.code }}" \
+            -PdmVersionName="${{ steps.version.outputs.version }}"
           mkdir -p dist
           cp dm/android/app/build/outputs/apk/release/app-release.apk dist/D2RMobile-android.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify dist/D2RMobile-android.apk
@@ -68,16 +78,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           gradle --no-daemon -p dm/android :app:assembleDebug :app:lintDebug \
-            -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)"
+            -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)" \
+            -PdmVersionCode="${{ steps.version.outputs.code }}" \
+            -PdmVersionName="${{ steps.version.outputs.version }}"
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
           name: android-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
-    outputs:
-      commit: ${{ github.sha }}
-
   release:
     if: github.event_name != 'pull_request'
     needs: android
@@ -94,13 +103,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           COMMIT: ${{ needs.android.outputs.commit }}
+          VERSION: ${{ needs.android.outputs.version }}
+          TAG: ${{ needs.android.outputs.tag }}
         run: |
-          tag="android-${COMMIT}"
-          printf 'Android build of commit `%s`.\n\nInstall D2RMobile-android.apk and prepare your own game pack from the source archive of this exact tag. Choose its folder in the app; files are read in place. Game content is not included. French text and French voices are supported when the corresponding audio archives are present.\n' "$COMMIT" > notes.md
+          tag="$TAG"
+          printf 'Android %s\n\nInstall D2RMobile-android.apk and prepare your own game pack from the source archive of this exact tag. Choose its folder in the app; files are read in place. Game content is not included. French text and French voices are supported when the corresponding audio archives are present.\n\nSwitch 1.0.33 uses the original controller UI; 1.0.34 retains touch controls. See docs/ANDROID.fr.md for installation and limitations.\n\nSource commit: `%s`.\n' "$VERSION" "$COMMIT" > notes.md
           if gh release view "$tag" > /dev/null 2>&1; then
+            existing_commit=$(gh api "repos/$GH_REPO/commits/$tag" --jq .sha)
+            test "$existing_commit" = "$COMMIT" || { echo "Refusing to replace a version assigned to another commit" >&2; exit 1; }
             gh release upload "$tag" dist/* --clobber
-            gh release edit "$tag" --prerelease=false --latest
+            gh release edit "$tag" --title "Android $VERSION" --notes-file notes.md --prerelease=false --latest
           else
             gh release create "$tag" dist/* --target "$COMMIT" \
-              --title "Android ${COMMIT:0:12}" --notes-file notes.md --latest
+              --title "Android $VERSION" --notes-file notes.md --latest
           fi

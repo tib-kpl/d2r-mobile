@@ -26,6 +26,9 @@ jobs:
         with:
           gradle-version: '9.8.1'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install Android tools
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' 'cmake;3.31.6'
       - name: Validate localization and generate content-free shell
@@ -33,7 +36,7 @@ jobs:
           python dm/ios/tools/dm_i18n.py --check
           python dm/i18n/scan_literals.py
           python dm/ios/tests/test_touch_layout_language.py
-          python -m unittest discover -s dm/android/tests -p 'test_ci_shell.py'
+          python -m unittest discover -s dm/android/tests -p 'test_*.py'
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -I dm/android/compat/include -I dm/host dm/host/tests/t_i18n.c dm/host/dm_i18n.c -o "$RUNNER_TEMP/t_i18n"
           for mode in en zh none sysen syses systw sysru sysko sysfr tags game; do "$RUNNER_TEMP/t_i18n" "$mode"; done
           python dm/android/tools/ci_shell.py "$RUNNER_TEMP/dm-gen"

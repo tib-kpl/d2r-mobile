@@ -35,6 +35,8 @@ En cas de dossier absent ou déplacé, le bouton de choix reste disponible. La t
 Menu Android ouvre aussi le choix du dossier. Après un changement alors que le
 moteur est chargé, fermez complètement l'application et relancez-la.
 Le sélecteur privilégie la carte SD au premier choix lorsqu'elle est disponible.
+Les cartes SD sans attributs étendus (notamment exFAT) sont prises en charge
+pour la lecture du pack, y compris ses ressources tactiles en version 1.0.34.
 **Oublier ce dossier** efface seulement le chemin mémorisé, sans supprimer les fichiers.
 
 Le changement de langue nécessite de **recréer le pack avec les nouvelles sources**.

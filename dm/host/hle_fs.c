@@ -156,7 +156,9 @@ static int guest_name(const char *parent, const char *physical, char *out, size_
     char p[1280]; snprintf(p, sizeof p, "%s/%s", parent, physical);
     ssize_t k = fs_xattr_get(p, out, n - 1);
     if (k >= 0) { out[k] = 0; return 1; }
-    if (errno != ENOATTR) return 0;
+    // SD cards and Android shared storage may not implement extended attributes.
+    // Ordinary filenames still work there; real access errors remain failures.
+    if (errno != ENOATTR && errno != ENOTSUP && errno != EOPNOTSUPP) return 0;
     strlcpy(out, physical, n); return 1;
 }
 static int path_component(char *parent, size_t n, const char *name, int create) {
@@ -267,7 +269,7 @@ static int set_guest_name(const char *hp, const char *path) {
     memcpy(guest, start, k); guest[k] = 0;
     const char *physical = strrchr(hp, '/') + 1;
     if (strcmp(physical, guest)) return fs_xattr_set(hp, guest, strlen(guest));
-    if (!fs_xattr_del(hp) || errno == ENOATTR) return 0;
+    if (!fs_xattr_del(hp) || errno == ENOATTR || errno == ENOTSUP || errno == EOPNOTSUPP) return 0;
     return -1;
 }
 static Result err_res(const char *op, const char *path) {

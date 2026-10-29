@@ -9,6 +9,7 @@
   emplacement mémorisé et lecture directe des ressources et du pack préparé.
   Le dossier `android` reste à côté de `data` : aucune copie interne du pack n'est
   nécessaire. Les sauvegardes et caches restent dans le stockage de l'application.
+  La lecture du pack fonctionne aussi sur les cartes SD sans attributs étendus.
 - **Releases Android automatiques** : chaque push de branche construit, vérifie et
   publie un APK signé ainsi que `SHA256SUMS` dans une release normale numérotée
   (`v2.2.7`, `v2.2.8`…). Le même numéro apparaît dans la version Android de l'APK.

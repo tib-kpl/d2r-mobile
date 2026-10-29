@@ -114,6 +114,8 @@ décodeur VP8 et le lecteur WebM nécessaires au jeu. Le son, les sous-titres et
 la synchronisation restent gérés par le jeu. Les sources de FFmpeg, sa licence
 LGPL et sa configuration de compilation sont jointes à chaque nouvelle release.
 Les notices sont accessibles par la touche Menu Android puis **Licences des logiciels libres**.
+Cette page est facultative et s'ouvre uniquement sur demande ; aucune fenêtre
+FFmpeg ne s'affiche à l'installation ou au lancement du jeu.
 
 Pour compiler localement sous Linux, préparez les bibliothèques avec :
 

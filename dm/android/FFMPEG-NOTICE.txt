@@ -15,4 +15,4 @@ pass -PdmFfmpegDir=/path/to/out to Gradle to use your replacement libraries.
 You may modify these libraries and reverse engineer the application for
 debugging such modifications, as permitted by the LGPL.
 The LGPL license text is included in this APK's ffmpeg_lgpl raw resource.
-Both notices are available from the Android folder screen's licenses button.
+Both notices are available from the Android Menu > Open-source licenses page.

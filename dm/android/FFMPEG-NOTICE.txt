@@ -3,9 +3,9 @@ GNU Lesser General Public License, version 2.1 or later.
 Copyright (c) the FFmpeg developers. FFmpeg is a separate, shared library;
 its source code has not been modified.
 
-Corresponding source: ffmpeg-9.0.2.tar.xz, distributed beside this APK on
+Corresponding source: ffmpeg-9.0.2-git.tar.gz, distributed beside this APK on
 https://github.com/tib-kpl/d2r-mobile/releases
-Original source: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+Original source: https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n9.0.2.tar.gz
 Build recipe: dm/android/tools/build_ffmpeg.sh in this release's source code.
 Build configuration: ffmpeg-build-config.txt beside the APK.
 

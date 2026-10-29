@@ -85,7 +85,7 @@ jobs:
           cp dm/android/app/build/outputs/apk/release/app-release.apk dist/D2RMobile-android.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify dist/D2RMobile-android.apk
           python dm/android/tools/check_shell_apk.py dist/D2RMobile-android.apk --require-movies
-          cp "$RUNNER_TEMP/dm-ffmpeg/source/ffmpeg-9.0.2.tar.xz" dist/
+          cp "$RUNNER_TEMP/dm-ffmpeg/source/ffmpeg-9.0.2-git.tar.gz" dist/
           cp "$RUNNER_TEMP/dm-ffmpeg/out/config.mak" dist/ffmpeg-build-config.txt
           cp "$RUNNER_TEMP/dm-ffmpeg/out/COPYING.LGPLv2.1" dist/FFmpeg-LGPL-2.1.txt
           (cd dist && sha256sum D2RMobile-android.apk ffmpeg-* FFmpeg-* > SHA256SUMS)

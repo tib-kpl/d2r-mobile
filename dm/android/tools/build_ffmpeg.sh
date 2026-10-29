@@ -18,7 +18,9 @@ if [ -f "$out/recipe.sha256" ] && [ "$(cat "$out/recipe.sha256")" = "$recipe" ];
 fi
 mkdir -p "$root/source" "$root/build" "$out"
 if [ ! -f "$root/source/$archive" ]; then
-  curl -fL --retry 3 "https://ffmpeg.org/releases/$archive" -o "$root/source/$archive"
+  curl -fL --connect-timeout 20 --max-time 300 --retry 3 --retry-all-errors \
+    "https://ffmpeg.org/releases/$archive" -o "$root/source/$archive.part"
+  mv "$root/source/$archive.part" "$root/source/$archive"
 fi
 printf '%s  %s\n' "$sha" "$root/source/$archive" | sha256sum -c -
 if [ ! -f "$root/source/ffmpeg-$version/configure" ]; then

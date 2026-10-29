@@ -285,7 +285,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
             String[] gameLabels = new String[gameIds.length], navLabels = new String[navIds.length];
             for (int i = 0; i < gameIds.length; i++) gameLabels[i] = getString(gameIds[i]);
             for (int i = 0; i < navIds.length; i++) navLabels[i] = getString(navIds[i]);
-            touchOverlay = new TouchOverlay(this, gameLabels, navLabels);
+            touchOverlay = new TouchOverlay(this, gameLabels, navLabels, new File(runtime, "overlay"));
             touchOverlay.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets safe = insets.getInsets(WindowInsets.Type.displayCutout());
                 touchOverlay.setSafeInsets(safe.left, safe.right, safe.bottom);

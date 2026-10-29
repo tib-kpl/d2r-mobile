@@ -24,7 +24,10 @@
 
 // 「配音」单选（voice：0 中文配音 / 1 English voice，公开）只在编进过场解码（DM_MOVIE_FFMPEG，Makefile 的 MOVIE_FFMPEG=1）的包里有：
 // 布局侧 touch_layout.py 的 _CUSTOM_KEYS 按同一个开关（环境变量 MOVIE_FFMPEG=1）加这一行。缺省包键表、行序、存盘内容与原来一字不差
-#ifdef DM_MOVIE_FFMPEG
+// Android packs use the existing language selector and follow its voice language.
+// Enabling the decoder must not add the desktop-only Chinese/English voice row
+// to the native key table when that row is absent from the Android layout.
+#if defined(DM_MOVIE_FFMPEG) && !defined(__ANDROID__)
 #define VOICE_ROW 1
 #else
 #define VOICE_ROW 0

@@ -68,6 +68,9 @@ public final class TouchOverlay extends View {
 
     /** labels为本地化表中的15项：12键、摇杆、换组、难度；menuLabels为导航态前五键。 | Pass 15 localized game labels and five navigation labels from the shared string table. */
     public TouchOverlay(Context context, String[] labels, String[] menuLabels) {
+        this(context, labels, menuLabels, new File(context.getFilesDir(), "dm/overlay"));
+    }
+    public TouchOverlay(Context context, String[] labels, String[] menuLabels, File overlayRoot) {
         super(context);
         density = getResources().getDisplayMetrics().density;
         Arrays.fill(pointerIds,-1);
@@ -75,7 +78,7 @@ public final class TouchOverlay extends View {
         this.menuLabels = menuLabels == null ? new String[5] : menuLabels.clone();
         lifeFormat=context.getString(R.string.dmHudLife); manaFormat=context.getString(R.string.dmHudMana);
         levelFormat=context.getString(R.string.dmAndroidHudLevel); cancelLabel=context.getString(R.string.dmTcCancel);
-        overlayRoot=new File(context.getFilesDir(),"dm/overlay");
+        this.overlayRoot=overlayRoot;
         setWillNotDraw(false);
         setFocusable(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);

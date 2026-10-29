@@ -40,6 +40,17 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Install Android tools
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' 'cmake;3.31.6'
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/dm-ffmpeg
+          key: ffmpeg-android-r29-${{ runner.os }}-${{ hashFiles('dm/android/tools/build_ffmpeg.sh') }}
+      - name: Build shared VP8 decoder
+        run: bash dm/android/tools/build_ffmpeg.sh "$RUNNER_TEMP/dm-ffmpeg" "$ANDROID_HOME/ndk/29.0.14206865"
+      - name: Test movie decoding with synthetic video
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
+          make -C dm/host/tests movie-real PY=python3
       - name: Validate localization and generate content-free shell
         run: |
           python dm/ios/tools/dm_i18n.py --check
@@ -67,20 +78,26 @@ jobs:
         run: |
           gradle --no-daemon -p dm/android :app:assembleRelease :app:lintRelease \
             -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)" \
+            -PdmFfmpegDir="$RUNNER_TEMP/dm-ffmpeg/out" \
             -PdmVersionCode="${{ steps.version.outputs.code }}" \
             -PdmVersionName="${{ steps.version.outputs.version }}"
           mkdir -p dist
           cp dm/android/app/build/outputs/apk/release/app-release.apk dist/D2RMobile-android.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify dist/D2RMobile-android.apk
-          python dm/android/tools/check_shell_apk.py dist/D2RMobile-android.apk
-          (cd dist && sha256sum D2RMobile-android.apk > SHA256SUMS)
+          python dm/android/tools/check_shell_apk.py dist/D2RMobile-android.apk --require-movies
+          cp "$RUNNER_TEMP/dm-ffmpeg/source/ffmpeg-9.0.2.tar.xz" dist/
+          cp "$RUNNER_TEMP/dm-ffmpeg/out/config.mak" dist/ffmpeg-build-config.txt
+          cp "$RUNNER_TEMP/dm-ffmpeg/out/COPYING.LGPLv2.1" dist/FFmpeg-LGPL-2.1.txt
+          (cd dist && sha256sum D2RMobile-android.apk ffmpeg-* FFmpeg-* > SHA256SUMS)
       - name: Build pull request without signing secrets
         if: github.event_name == 'pull_request'
         run: |
           gradle --no-daemon -p dm/android :app:assembleDebug :app:lintDebug \
             -PdmGenDir="$RUNNER_TEMP/dm-gen" -PdmPython="$(command -v python)" \
+            -PdmFfmpegDir="$RUNNER_TEMP/dm-ffmpeg/out" \
             -PdmVersionCode="${{ steps.version.outputs.code }}" \
             -PdmVersionName="${{ steps.version.outputs.version }}"
+          python dm/android/tools/check_shell_apk.py dm/android/app/build/outputs/apk/debug/app-debug.apk --require-movies
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
@@ -107,7 +124,7 @@ jobs:
           TAG: ${{ needs.android.outputs.tag }}
         run: |
           tag="$TAG"
-          printf 'Android %s\n\nInstall D2RMobile-android.apk and prepare your own game pack from the source archive of this exact tag. Choose its folder in the app; files are read in place. Game content is not included. French text and French voices are supported when the corresponding audio archives are present.\n\nSwitch 1.0.33 uses the original controller UI; 1.0.34 retains touch controls. See docs/ANDROID.fr.md for installation and limitations.\n\nSource commit: `%s`.\n' "$VERSION" "$COMMIT" > notes.md
+          printf 'Android %s\n\nInstall D2RMobile-android.apk and prepare your own game pack from the source archive of this exact tag. Choose its folder in the app; files are read in place. Game content is not included. French text and French voices are supported when the corresponding audio archives are present.\n\nSwitch 1.0.33 uses the original controller UI; 1.0.34 retains touch controls. See docs/ANDROID.fr.md for installation and limitations.\n\nVP8 movie playback uses shared FFmpeg libraries (LGPL-2.1-or-later). Corresponding source, license and build configuration are attached.\n\nSource commit: `%s`.\n' "$VERSION" "$COMMIT" > notes.md
           if gh release view "$tag" > /dev/null 2>&1; then
             existing_commit=$(gh api "repos/$GH_REPO/commits/$tag" --jq .sha)
             test "$existing_commit" = "$COMMIT" || { echo "Refusing to replace a version assigned to another commit" >&2; exit 1; }

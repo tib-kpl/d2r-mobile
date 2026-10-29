@@ -16,12 +16,14 @@
   manette physique, adapté notamment à l'Odin 2. Création de personnage, camp,
   déplacement, dialogue, sauvegarde et rechargement testés sur Odin 2 Portal.
 - **Documentation française** : [installation Android et fonctionnement du fork](docs/ANDROID.fr.md).
+- **Vidéos sur Android** : décodage VP8 des cinématiques et du fond animé de
+  l'écran titre, avec FFmpeg. Le jeu conserve la gestion du son et des sous-titres.
 
 **Compatibilité Android : Switch 1.0.34.0 et 1.0.33.0.** La 1.0.34 conserve les
 améliorations tactiles du port. La 1.0.33 utilise son propre profil `original133`,
 sans commandes tactiles ni améliorations du port qui dépendent de la 1.0.34.
-Les cinématiques ne sont pas décodées dans l'APK actuel ; une séquence noire peut
-être passée avec un bouton. Voir [les limites et essais de la 1.0.33](docs/VERSION_1_0_33.md).
+Le fond animé de l'écran titre a été vérifié sur Odin 2 Portal.
+Voir [les limites et essais de la 1.0.33](docs/VERSION_1_0_33.md).
 
 ---
 

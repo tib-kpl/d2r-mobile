@@ -81,8 +81,9 @@ French UI selects French voices only when every archive recorded for French in
 the prepared pack is readable; otherwise it uses English voices. Regenerate older
 packs to include the voice metadata. Switch 1.0.33.0 uses the `original133` profile;
 its generator was tested under WSL/Ubuntu and its runtime on Odin 2 Portal.
-See [the compatibility tests and limits](VERSION_1_0_33.md). This APK does not decode
-cinematics: skip black movie sequences with a controller button.
+See [the compatibility tests and limits](VERSION_1_0_33.md).
+Current CI APKs include FFmpeg VP8 decoding, including the animated
+title background. Movie audio, subtitles and timing remain controlled by the game.
 
 ## Moving to a new release
 

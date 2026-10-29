@@ -198,12 +198,42 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         if (!folderPendingRestart && selected != null) {
             Button retry = new Button(this); retry.setText(R.string.dmAndroidRetry); retry.setOnClickListener(v -> startHost()); panel.addView(retry);
         }
+        int notice = getResources().getIdentifier("ffmpeg_notice", "raw", getPackageName());
+        if (notice != 0) {
+            Button licenses = new Button(this); licenses.setText(R.string.dmAndroidLicenses);
+            licenses.setOnClickListener(v -> showMovieLicense(notice)); panel.addView(licenses);
+        }
         setContentView(panel);
+    }
+
+    private void showMovieLicense(int notice) {
+        try (java.io.InputStream info = getResources().openRawResource(notice);
+             java.io.InputStream license = getResources().openRawResource(
+                 getResources().getIdentifier("ffmpeg_lgpl", "raw", getPackageName()))) {
+            TextView text = new TextView(this); text.setPadding(32, 24, 32, 24);
+            text.setText(readLicense(info) + "\n\n" + readLicense(license));
+            text.setTextIsSelectable(true);
+            android.widget.ScrollView scroll = new android.widget.ScrollView(this); scroll.addView(text);
+            new AlertDialog.Builder(this).setTitle(R.string.dmAndroidLicenses).setView(scroll)
+                .setPositiveButton(android.R.string.ok, null).show();
+        } catch (IOException e) { android.util.Log.e("dm", "FFmpeg license", e); }
+    }
+
+    private static String readLicense(java.io.InputStream stream) throws IOException {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[4096]; int count;
+        while ((count = stream.read(buffer)) != -1) bytes.write(buffer, 0, count);
+        return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
     }
 
     @Override public boolean onKeyUp(int code, android.view.KeyEvent event) {
         if (code == android.view.KeyEvent.KEYCODE_MENU) {
-            new AlertDialog.Builder(this).setItems(new String[] {getString(R.string.dmAndroidChooseFolder)}, (dialog, which) -> pickGameFolder()).show();
+            int notice = getResources().getIdentifier("ffmpeg_notice", "raw", getPackageName());
+            String[] items = notice == 0 ? new String[] {getString(R.string.dmAndroidChooseFolder)} :
+                new String[] {getString(R.string.dmAndroidChooseFolder), getString(R.string.dmAndroidLicenses)};
+            new AlertDialog.Builder(this).setItems(items, (dialog, which) -> {
+                if (which == 0) pickGameFolder(); else showMovieLicense(notice);
+            }).show();
             return true;
         }
         return super.onKeyUp(code, event);

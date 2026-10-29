@@ -1,0 +1,18 @@
+This application uses FFmpeg 9.0.2 (https://ffmpeg.org), licensed under the
+GNU Lesser General Public License, version 2.1 or later.
+Copyright (c) the FFmpeg developers. FFmpeg is a separate, shared library;
+its source code has not been modified.
+
+Corresponding source: ffmpeg-9.0.2.tar.xz, distributed beside this APK on
+https://github.com/tib-kpl/d2r-mobile/releases
+Original source: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+Build recipe: dm/android/tools/build_ffmpeg.sh in this release's source code.
+Build configuration: ffmpeg-build-config.txt beside the APK.
+
+The APK contains replaceable ARM64 shared libraries: libavformat.so,
+libavcodec.so, libavutil.so and libswscale.so. Rebuild with the recipe and
+pass -PdmFfmpegDir=/path/to/out to Gradle to use your replacement libraries.
+You may modify these libraries and reverse engineer the application for
+debugging such modifications, as permitted by the LGPL.
+The LGPL license text is included in this APK's ffmpeg_lgpl raw resource.
+Both notices are available from the Android folder screen's licenses button.

@@ -9,6 +9,14 @@
 plugins { id 'com.android.application' }
 
 def prebuilt = project.findProperty('dmPrebuiltJni')
+def ffmpegDir = project.findProperty('dmFfmpegDir')
+def movieNotices = layout.buildDirectory.dir('generated/movieNotices')
+def generateMovieNotices = tasks.register('generateMovieNotices', Copy) {
+    onlyIf { ffmpegDir != null }
+    if (ffmpegDir) from("${ffmpegDir}/COPYING.LGPLv2.1") { rename { 'ffmpeg_lgpl.txt' } }
+    from('../FFMPEG-NOTICE.txt') { rename { 'ffmpeg_notice.txt' } }
+    into(movieNotices.map { it.dir('raw') })
+}
 
 // 启动文案取自统一中英表，生成目录只在 build 下，不入库。
 // Startup text comes from the shared table; generated resources stay under build.
@@ -47,12 +55,13 @@ android {
         if (!prebuilt) externalNativeBuild { cmake {
             arguments "-DDM_GEN_DIR=${project.findProperty('dmGenDir') ?: ''}"
             if (project.findProperty('dmPython')) arguments "-DPython3_EXECUTABLE=${project.property('dmPython')}"
+            if (project.findProperty('dmFfmpegDir')) arguments "-DDM_FFMPEG_DIR=${project.property('dmFfmpegDir')}"
             targets 'dm'
         } }
     }
     if (!prebuilt) externalNativeBuild { cmake { path '../CMakeLists.txt'; version '3.31.6' } }
     if (prebuilt) sourceSets { main { jniLibs.srcDirs = [prebuilt] } }
-    sourceSets { main { res.srcDir(startupStrings.get().asFile); res.srcDir(launcherIcon.get().asFile) } }
+    sourceSets { main { res.srcDir(startupStrings.get().asFile); res.srcDir(launcherIcon.get().asFile); if (ffmpegDir) res.srcDir(movieNotices.get().asFile) } }
     packaging { jniLibs { useLegacyPackaging false; keepDebugSymbols += ['**/*.so'] } }
     buildFeatures { buildConfig true }
     // 正式版签名：钥匙不进仓库，路径与密码从环境变量来（tools/shell_apk.sh release 读本机 ~/.config/dm-android/release.env）；没设就不签
@@ -66,4 +75,4 @@ android {
     buildTypes { release { minifyEnabled false; if (releaseKey) signingConfig signingConfigs.release } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
-tasks.named('preBuild').configure { dependsOn(generateStartupStrings, generateLauncherIcon) }
+tasks.named('preBuild').configure { dependsOn(generateStartupStrings, generateLauncherIcon, generateMovieNotices) }

@@ -98,8 +98,26 @@ par ce fork ; le générateur vérifie aussi les identifiants des trois modules.
 
 Conservez tout `RomFS/data` si vous avez la place : la copie testée occupe environ
 9 Go et contient les voix françaises dans `08-00000001.data` et `08-00000002.data`.
-Les cinématiques ne sont pas décodées dans cet APK et peuvent apparaître en noir ;
-utilisez un bouton pour les passer. Création, déplacement, dialogue, sauvegarde
+Les APK qui incluent FFmpeg décodent les vidéos VP8 : le logo animé de démarrage
+et le fond de l'écran « Appuyez sur A pour commencer » ont été vérifiés sur Odin.
+Les cinématiques peuvent toujours être passées avec un bouton. Création, déplacement, dialogue, sauvegarde
 et rechargement ont été vérifiés sur Odin 2 Portal avec les fichiers sur carte SD.
 Cela ne constitue pas une validation de tous les actes et de tous les personnages.
 Voir [les essais et les limites](VERSION_1_0_33.md).
+
+## Lecture vidéo et compilation
+
+La CI compile FFmpeg 9.0.2 sous forme de bibliothèques partagées avec le seul
+décodeur VP8 et le lecteur WebM nécessaires au jeu. Le son, les sous-titres et
+la synchronisation restent gérés par le jeu. Les sources de FFmpeg, sa licence
+LGPL et sa configuration de compilation sont jointes à chaque nouvelle release.
+Les notices sont accessibles par la touche Menu Android puis **Licences des logiciels libres**.
+
+Pour compiler localement sous Linux, préparez les bibliothèques avec :
+
+```sh
+bash dm/android/tools/build_ffmpeg.sh /chemin/ffmpeg "$ANDROID_HOME/ndk/29.0.14206865"
+```
+
+Ajoutez `-PdmFfmpegDir=/chemin/ffmpeg/out` à votre commande Gradle habituelle.
+Sans ce paramètre, un build local conserve le lecteur simplifié sans images.

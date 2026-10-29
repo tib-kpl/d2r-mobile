@@ -42,8 +42,10 @@ prepared runtime read directly from the removable SD card:
 ## Limits
 
 This is the original controller UI: no touch controls, custom camera or 1.0.34
-gameplay extensions. The current APK does not decode cinematics; they can appear
-black and can be skipped with a controller button. The original save throttle is
+gameplay extensions. APKs built with FFmpeg decode VP8 movies; the startup logo
+and animated title background were verified on Odin 2 Portal. Synthetic ARM64
+tests also verify all decoded frames, loops, skipping and teardown. All acts'
+cinematics have not been individually tested. The original save throttle is
 retained, so use Save and Exit before stopping the app. Saves and GPU caches stay
 in app storage; the SD folder must remain available.
 

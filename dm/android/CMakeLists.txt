@@ -104,6 +104,22 @@ set(DM_CFLAGS -O1 -g -Wall -Wno-unused-function -fno-strict-aliasing -include ${
 target_compile_options(dmcore PUBLIC $<$<COMPILE_LANGUAGE:C>:${DM_CFLAGS} -std=gnu17>)
 target_link_libraries(dmcore PUBLIC dm_vulkan_engine aaudio android log m dl)
 
+# Shared FFmpeg libraries are replaceable and packaged by the Android Gradle plugin.
+# The decoder receives the game's reader, timing and NV12 output buffers.
+if(DM_FFMPEG_DIR)
+  foreach(component avformat avcodec swscale avutil)
+    if(NOT EXISTS "${DM_FFMPEG_DIR}/lib/lib${component}.so")
+      message(FATAL_ERROR "Missing FFmpeg Android library: ${component}")
+    endif()
+    add_library(dm_${component} SHARED IMPORTED)
+    set_target_properties(dm_${component} PROPERTIES
+      IMPORTED_LOCATION "${DM_FFMPEG_DIR}/lib/lib${component}.so")
+    target_link_libraries(dmcore PUBLIC dm_${component})
+  endforeach()
+  target_include_directories(dmcore PRIVATE "${DM_FFMPEG_DIR}/include")
+  target_compile_definitions(dmcore PUBLIC DM_MOVIE_FFMPEG=1)
+endif()
+
 # 命令行宿主：main.c 原样 | Command-line host: main.c as is
 add_executable(dmhost ${HOST}/main.c)
 target_link_libraries(dmhost PRIVATE -Wl,--whole-archive dmcore -Wl,--no-whole-archive)

@@ -1,30 +1,31 @@
 # D2R Mobile
 
-## Ce que ce fork apporte
-
-- **Français** : textes du jeu et du port, écrans Android et choix de langue. Les
-  voix françaises sont activées lorsque toutes leurs archives sont présentes ; le
-  pack préparé depuis vos fichiers du jeu indique les archives à conserver.
-- **Dossier du jeu au choix** : sélection du stockage interne ou d'une carte SD,
-  emplacement mémorisé et lecture directe des ressources et du pack préparé.
-  Le dossier `android` reste à côté de `data` : aucune copie interne du pack n'est
-  nécessaire. Les sauvegardes et caches restent dans le stockage de l'application.
-  La lecture du pack fonctionne aussi sur les cartes SD sans attributs étendus.
-- **Releases Android automatiques** : chaque push de branche construit, vérifie et
-  publie un APK signé ainsi que `SHA256SUMS` dans une release normale numérotée
-  (`v2.2.7`, `v2.2.8`…). Le même numéro apparaît dans la version Android de l'APK.
-- **Switch 1.0.33.0 sur Android** : profil dédié avec l'interface originale et une
-  manette physique, adapté notamment à l'Odin 2. Création de personnage, camp,
-  déplacement, dialogue, sauvegarde et rechargement testés sur Odin 2 Portal.
-- **Documentation française** : [installation Android et fonctionnement du fork](docs/ANDROID.fr.md).
-- **Vidéos sur Android** : décodage VP8 des cinématiques et du fond animé de
-  l'écran titre, avec FFmpeg. Le jeu conserve la gestion du son et des sous-titres.
-
-**Compatibilité Android : Switch 1.0.34.0 et 1.0.33.0.** La 1.0.34 conserve les
-améliorations tactiles du port. La 1.0.33 utilise son propre profil `original133`,
-sans commandes tactiles ni améliorations du port qui dépendent de la 1.0.34.
-Le fond animé de l'écran titre a été vérifié sur Odin 2 Portal.
-Voir [les limites et essais de la 1.0.33](docs/VERSION_1_0_33.md).
+> [!NOTE]
+> **What this fork adds**
+>
+> - **French support**: game and port text, Android screens, and language selection.
+>   French voices are enabled when all required audio archives are present; the
+>   pack prepared from your own game files lists the archives to keep.
+> - **Choose your game folder**: select internal storage or an SD card. The app
+>   remembers the location and reads the game resources and prepared pack in place.
+>   Keep `android` next to `data`; no internal copy of the pack is needed.
+>   Saves and caches remain in app storage. SD cards without extended attributes
+>   are also supported.
+> - **Automatic Android releases**: each branch push builds, checks, and publishes
+>   a signed APK and `SHA256SUMS` in a numbered, non-prerelease GitHub release
+>   (`v2.2.7`, `v2.2.8`, etc.). The APK uses the same version number.
+> - **Switch 1.0.33.0 on Android**: a dedicated profile with the original UI and
+>   physical controller support, including the Odin 2. Character creation, the camp,
+>   movement, dialogue, saving, and reloading were tested on Odin 2 Portal.
+> - **French documentation**: [Android installation and fork features](docs/ANDROID.fr.md).
+> - **Android video playback**: FFmpeg VP8 decoding for cinematics and the animated
+>   title background. The game still handles audio and subtitles.
+>
+> **Android compatibility: Switch 1.0.34.0 and 1.0.33.0.** Version 1.0.34 keeps
+> the port's touch enhancements. Version 1.0.33 uses its own `original133` profile,
+> without touch controls or port enhancements that depend on 1.0.34.
+> The animated title background was verified on Odin 2 Portal.
+> See the [1.0.33 tests and limitations](docs/VERSION_1_0_33.md).
 
 ---
 

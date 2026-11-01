@@ -43,11 +43,20 @@ python3 dm/tools/d2rm_android.py <game files directory> <output directory>
 android/out/          the rewritten game program and its tables
 android/shaders/      Vulkan shader bundles (6,931)
 android/overlay/      touch overlay and UI art
+android/overlay_variants/  the overlay used while "item notes and old names" is on (Custom page, after a restart)
 android/derived.tsv   a few data tables generated from the game files
 android/pack_info.txt which release this import pack is for
 ```
 
 Steps already done are skipped on the next run. This folder contains game content; keep it to yourself and do not distribute it.
+
+**Optional: a warm-up seed.** The first time the game reaches a place, the phone builds the GPU pipelines that place needs, and the first fight stutters while it does. A seed (`vk-pipeline-list.seed`, a list of the pipelines other phones have already seen) lets the App build them during start-up instead. If you have one, add it when making the pack:
+
+```
+python3 dm/tools/d2rm_android.py --warm-seed <seed file> <game files directory> <output directory>
+```
+
+Keep the seed file outside the repository. It is only read on the App's first launch, so it helps a fresh install; a phone that has already played keeps the list it records itself, even after a new import.
 
 ## Step 2: choose where to store the game
 

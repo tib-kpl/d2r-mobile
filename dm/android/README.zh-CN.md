@@ -59,6 +59,7 @@ APK 和 Git 仓库均不含游戏程序、着色器、游戏美术或存档。�
 | 应用内部 `files/dm/shaders/` | 与游戏及 Vulkan 后端匹配的仓外 `.xgs` 包 |
 | 应用内部 `files/dm/overlay/` | 必需 CASC 触摸覆盖层，含 `overlay.manifest`，由匹配源码及用户资源生成 |
 | 应用内部 `files/dm/overlay/touchart/`、`files/dm/overlay/hud_v4_ui/` | 由 `stage_touch_assets.py` 放入的技能图集及其银色剪影、地图图标、圆框、底栏素材，以及技能钮底座（仓库的 `dm/ios/Sources/ControlArt/dm_mobile_socket.png`）。触屏控件与 iOS 同一套画法（`dm/ios/Sources/DmTouchControlArt.h`、`DmTouchOverlay.m`），摇杆用代码画 |
+| 应用内部 `files/dm/overlay_variants/` | 可选：走覆盖层的自定义开关（目前只有「物品注释与旧译名」）每种组合一份完整覆盖层，各带 `overlay.manifest`；App 启动时把与开关相符的那份叠在 `overlay/` 前面 |
 | 共享 `Download/S2X/D2R Mobile/data/` | 用户资源档案及 `.build.config`，需要安卓“所有文件访问”授权；没有这个目录、而早先的 `Download/data/` 在时，App 沿用 `Download/data/` |
 | 应用内部 `files/dm/derived.tsv`、`files/dm/pack_info.txt` | 从游戏文件生成的数据表（不含游戏内容的发布包启动时读）；导入包的产物代号与生成时刻 |
 | 应用内部 `files/save/` | 存档，升级时必须保留 |
@@ -75,7 +76,7 @@ APK 和 Git 仓库均不含游戏程序、着色器、游戏美术或存档。�
 - **6,927 个是游戏自己着色器的翻译。** 它们出自游戏文件，所以不进 Git、PR 和 APK。`dm/gfx/tools/dmsh_vk.py` 从头做出它们：用 `dm/gfx/tools/dmsh_xlate` 翻成面向 Vulkan 的 SPIR-V，绑定号改成单描述符集的编号（原号 × 6 + 阶段号）、补上「未定格式」存储图像读写的能力、裁掉多余能力，导出 `<键>.vk.json`，再用 `pack_game_shaders.py` 的打包函数写成包。做出的 6,927 个包与 biglawine 鸿蒙着色器流程做出的测试包逐字节相同（`dmsh_vk.py --compare <参考目录> <输出目录>`）。
 - **4 个是 main 程序本体内嵌的查询核**（`q_val0`、`q_val8`、`q_dlt0`、`q_dlt8`；Mac 与 iOS 用 `dm/gfx/nvn/nvn_builtin.h` 里的 MSL 版）。它们是手写的，能从源码做：`python3 dm/gfx/tools/pack_builtin_queries.py --output <新目录>` 用 `glslc`（NDK 的 `shader-tools/` 下就有）编译 `dm/gfx/vulkan/kernels/builtin_queries.comp`，写出这 4 个文件。
 
-一套包还可以附带 `vk-pipeline-list.seed`。首次启动、还没有 `files/dm/vk-pipeline-list.bin` 时，引擎在启动期间编好种子里列出的管线，种子覆盖的地方第一次去就不会因为现编管线而卡。`dm/android/tools/merge_warm_lists.py` 把几台设备的 `files/dm/vk-pipeline-list.bin` 合成一个种子。种子只能和录它时的那套包一起用，所以随包发放。实测见 `docs/android-notes/2026-10-22-first-play-stutter.zh-CN.md`。
+一套包还可以附带 `vk-pipeline-list.seed`。首次启动、还没有 `files/dm/vk-pipeline-list.bin` 时，引擎在启动期间编好种子里列出的管线，种子覆盖的地方第一次去就不会因为现编管线而卡。`dm/android/tools/merge_warm_lists.py` 把几台设备的 `files/dm/vk-pipeline-list.bin` 合成一个种子。种子只能和录它时的那套包一起用，所以随包发放：`dm/tools/d2rm_android.py --warm-seed <文件>` 把它放进导入包（在耗时的步骤之前先核种子），并记在 `pack_info.txt` 的 `WARM_SEED=` 一行。种子放在仓库外。种子只对首次启动有用：手机上已经有 `files/dm/vk-pipeline-list.bin` 的，重新导入后仍用自己的清单。工具的检查随 `make -C dm/host/tests run` 跑（也可以 `python3 dm/tools/tests/test_warm_seed.py`）。实测见 `docs/android-notes/2026-10-22-first-play-stutter.zh-CN.md`。
 
 ## 验证与剩余工作
 

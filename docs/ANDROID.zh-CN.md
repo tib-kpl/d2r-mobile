@@ -43,11 +43,20 @@ python3 dm/tools/d2rm_android.py <游戏文件目录> <输出目录>
 android/out/          改写后的游戏程序与配套表
 android/shaders/      Vulkan 着色器包（6,931 个）
 android/overlay/      触屏覆盖层、界面素材
+android/overlay_variants/  「物品注释与旧译名」打开时用的覆盖层（自定义页，重启后生效）
 android/derived.tsv   几张从游戏文件生成的数据表
 android/pack_info.txt 这份导入包是给哪个版本做的
 ```
 
 做过的步骤再跑会跳过。这个文件夹里有游戏内容，请只自己用，不要分发。
+
+**可选：预热种子。** 游戏第一次到一个地方时，手机要现编那里用到的 GPU 管线，第一场战斗会卡一下。预热种子（`vk-pipeline-list.seed`，别的手机已经见过的管线清单）让 App 在启动期间先把它们编好。有种子的话，做包时带上：
+
+```
+python3 dm/tools/d2rm_android.py --warm-seed <种子文件> <游戏文件目录> <输出目录>
+```
+
+种子文件放在仓库外。它只在 App 首次启动时读，所以对刚装好的 App 有用；已经玩过的手机用自己记下的清单，重新导入也一样。
 
 ## 第二步：把文件拷进手机
 

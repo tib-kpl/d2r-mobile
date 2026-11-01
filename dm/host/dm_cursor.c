@@ -927,6 +927,39 @@ static int snap_guard_near(uint64_t cw, const char *nm, int x, int y, int sx, in
     return ok;
 }
 static _Atomic uint64_t g_speech_end, g_speech_back_at, g_close_down;   // 任务语音停下的那一帧；到这一帧替玩家按返回关任务面板；最近一次按下落在右上角 X 上的那一帧 | The frame the quest voice stopped; on reaching this frame press back for the player to close the quest panel; the frame of the most recent press that landed on the top-right X
+// 任务日志点任务（#198）。原版：点没选中的任务 = 按下选中、抬起播剧情对白（滚动字幕 + 语音），要再点一次才停、才看到当前目标；
+// 点面板里的空处 = 按下取消选中（标题、正文都空；对白播着时先停对白再取消）。触屏改成：
+//   · 点没选中的任务：选中、对白开播后替玩家在它上面再点一下 = 停对白，直接显示当前目标；
+//   · 再点已选中的任务：照原版重播对白（按下游戏不发消息、抬起开播，不补点）；
+//   · 点空处：不发给游戏；对白播着时改成点正在播的那个任务 = 停对白、保留目标。
+// 认法全看游戏自己的界面消息：按下后有 SelectQuest、没有 DialogueFinished = 这一下选了新任务；随后的 PlayDialogue 就要补点。
+// Tapping quests in the quest log (#198). Original: tapping an unselected quest = the press selects it and the release plays its dialogue (scrolling text + voice); another tap is needed to stop it and see the current objective;
+// tapping empty space in the panel = the press deselects (title and text go empty; while the dialogue plays it stops the dialogue first). On touch:
+//   - tapping an unselected quest: once it is selected and the dialogue starts, tap it once more for the player = stop the dialogue and show the current objective directly;
+//   - tapping the selected quest again: replays the dialogue as in the original (the press sends no message, the release starts it; no extra tap);
+//   - tapping empty space: not sent to the game; while a dialogue plays it becomes a tap on the quest being played = stop the dialogue, keep the objective.
+// Recognized purely from the game's own UI messages: SelectQuest after the press and no DialogueFinished = this tap selected a new quest; the PlayDialogue that follows gets the extra tap.
+// g_qt_arm：这次按下落在任务日志的可点控件上（等游戏回消息）；g_qt_sel / g_qt_fin：按下后游戏选中了任务 / 停了对白；g_qt_speech：对白面板开着
+// g_qt_arm: this press landed on a clickable widget of the quest log (waiting for the game's messages); g_qt_sel / g_qt_fin: after the press the game selected a quest / stopped the dialogue; g_qt_speech: the dialogue panel is open
+static _Atomic int g_qt_arm, g_qt_sel, g_qt_fin, g_qt_speech;
+// g_qt_dn：这次按下的位置；g_qt_xy：正在播对白的那个任务的位置（g_ut_xy 格式）；g_qt_stop_at：到这一帧补点停对白
+// g_qt_dn: the position of this press; g_qt_xy: the position of the quest whose dialogue is playing (g_ut_xy format); g_qt_stop_at: on reaching this frame add the tap that stops the dialogue
+static _Atomic uint64_t g_qt_dn, g_qt_xy, g_qt_stop_at;
+// 这一点在任务日志里：0 不在 / 1 在可点控件上（含就近吸附）/ 2 空处。任务日志挂在 UISwitcher 下；框里两侧的暗纹空处是 ControllerOverlay 的 Background
+// （盖层探查实测），也算任务日志的空处。框外没有面板盖着（ControllerOverlay 那里没有可见叶子），点框外关面板走的是另一条路，这里不管
+// Whether this point is in the quest log: 0 no / 1 on a clickable widget (nearest-snap included) / 2 empty space. The quest log hangs under UISwitcher; the dark patterned empty areas on both sides inside the frame are
+// ControllerOverlay's Background (measured with the cover probe) and also count as empty space of the quest log. Outside the frame no panel covers the point (ControllerOverlay has no visible leaf there); tapping outside the frame to close the panel goes another way and is not touched here
+// 右上角 X（TouchClose）不是可点控件类型、就近吸附认不出：按下判类时记下的「落在 X 上」（g_close_down）就不归这里，照常点
+// The top-right X (TouchClose) is not a clickable widget type and nearest-snap does not recognize it: a press recorded as landing on the X when it was classified (g_close_down) is left alone and clicked as usual
+static int quest_log_tap(module_t *m, uint64_t root, int x, int y) {
+    uint64_t qp = ui_find(root, "QuestLogPanelExpansion", 1); if (!qp || !*(uint8_t *)(qp + 0x50)) return 0;
+    uint64_t cd = atomic_load(&g_close_down); if (cd && dm_guest_frame() - cd < 60) return 0;
+    int t = ui_top_cover(m, root, x, y); if (t < 0) return 0;
+    uint64_t ch = *(uint64_t *)(root + 0x58), tp = *(uint64_t *)(ch + 8 * t); if (!tp) return 0;
+    const char *nm = *(uint64_t *)(tp + 8) ? (const char *)*(uint64_t *)(tp + 8) : "";
+    if (tp != qp && !ui_has(tp, qp, 0) && strcmp(nm, "QuestLogSpeechPanel") && strcmp(nm, "ControllerOverlay")) return 0;
+    int sx = x, sy = y; return ui_snap(m, root, &sx, &sy) ? 1 : 2;
+}
 static _Atomic uint64_t g_set_back_at;   // 到这一帧替玩家按一下返回键（设置页点了应用 / 放弃） | On reaching this frame press the back key once for the player (apply / discard was tapped on the settings page)
 static _Atomic int g_tab_delta, g_tab_top, g_tab_left; static _Atomic uint64_t g_tab_mask; static _Atomic uint64_t g_tab_then;
 // NPC 对话菜单（交谈 / 交易或修复 / 灌魔 / 取消）：选项是 NpcDialogPanel 下 Container 里的 ListItemK（行高 72 单位，手机上约 3 毫米），不认鼠标点击
@@ -1828,7 +1861,17 @@ static void mv_prune(void) {   // 不在界面树上的条目直接忘掉（不�
 }
 static int32_t g_mv_base; static int g_mv_base_on;   // 调用方知道这个控件的原位时（如小地图面板贴边 = -宽）在调用前给出：按它算，不拿控件此刻的值当原值（界面重建出来的新控件可能带着我们上一遍挪过的值） | When the caller knows this widget's original position (e.g. the minimap panel flush against the edge = -width), it supplies it before the call: compute from that instead of taking the widget's current value as the original (a new widget produced by a UI rebuild may carry the value we shifted on the previous pass)
 static void mv_offset(int own, uint64_t w, int f, int32_t delta, int relayout) {   // f：0 x、1 y、2 宽 | f: 0 x, 1 y, 2 width
-    if (!w) return; int32_t *v = (int32_t *)(w + 0x70 + 4 * f); int i = 0; while (i < g_nmv && !(g_mv[i].r.w == w && g_mv[i].f == f)) i++;   // 按原指针认条目（只比身份）：w 是调用方此刻从界面树上取的活控件；同址的新控件由下面「现值≠上次写的值 → 现值当原值」接住 | Match entries by original pointer (identity comparison only): w is the live widget the caller just took from the UI tree; a new widget at the same address is caught by the "current value ≠ last written value → treat current value as the original" rule below
+    // 两次布局重建之间不挪原版控件，避免游戏把临时偏移带进下一次重建；切换清理的 delta=0 写回仍要执行。
+    // Do not move original widgets during either rebuild; the next rebuild can inherit that offset. Cleanup restores (delta=0) still run.
+    int dm_padmode_busy(void); if (delta && dm_padmode_busy()) return;
+    if (!w) return;
+    // 物品栏的 +0x10（main+0x3db974）保存当前 x/y 到 +0x18c/+0x190，关闭时原版再从那里回位；它不是重排。
+    // 临时的储藏箱右移 / 魔盒藏背包不能调用它，否则临时位置会变成原位。绘制和命中直接读取当前矩形。
+    // Inventory +0x10 saves the current x/y as the native close position, rather than reflowing the widget.
+    // Keep that baseline intact for temporary stash/cube moves and restores; drawing and hit testing read the live rect.
+    const char *name = (const char *)*(uint64_t *)(w + 8);
+    if (name && !strcmp(name, "PlayerInventoryExpansionLayout")) relayout = 0;
+    int32_t *v = (int32_t *)(w + 0x70 + 4 * f); int i = 0; while (i < g_nmv && !(g_mv[i].r.w == w && g_mv[i].f == f)) i++;   // 按原指针认条目（只比身份）：w 是调用方此刻从界面树上取的活控件；同址的新控件由下面「现值≠上次写的值 → 现值当原值」接住 | Match entries by original pointer (identity comparison only): w is the live widget the caller just took from the UI tree; a new widget at the same address is caught by the "current value ≠ last written value → treat current value as the original" rule below
     if (i == g_nmv) { if (!delta) return; if (!mv_allowed(own, w)) { static int lg; if (lg++ < 8) LOG("【红】位置守卫：%s 要挪的控件「%s」不在名单里，不写", mv_name[own], (const char *)*(uint64_t *)(w + 8)); return; }
         mv_prune();   // 游戏重建界面（如切语言）后旧控件对象没了、新对象另起一条：先把不在界面树上的条目忘掉（不写，内存可能已释放），否则条目越积越多、96 条满了新控件写不进（英文版 ×8 红） | After the game rebuilds the UI (e.g. a language switch) the old widget objects are gone and the new objects start new entries: first forget entries not on the UI tree (no write, the memory may already be freed), otherwise entries keep piling up and once the 96 entries are full new widgets cannot be written (English version: ×8 red)
         if (g_nmv >= 96) { static int lg; if (lg++ < 8) LOG("【红】位置守卫：%s 条目满了（96 条都还挂在界面树上），「%s」不写", mv_name[own], (const char *)*(uint64_t *)(w + 8)); return; }
@@ -2300,18 +2343,21 @@ static void ui_pages_pump(module_t *m, uint64_t root) {   // 个人页上把自�
 // While the stash is open: the wide frame moves to -196 (196 out on each side, still centered overall), the old frame is not drawn, the stash panel moves left 196 and widens by 392, the inventory panel moves right 196, and the two title texts and the cursor bounds follow; closing restores it.
 // Rect +0x70 x, +0x78 width; after changing, call vtable +0x10 to re-layout (same as the safe-area portrait move). A value that is not what we last wrote = the panel was rebuilt or the game re-laid it out, so the current value is taken as the original
 static void ui_widestash_pump(uint64_t root) {
-    uint64_t bank = ui_panel(root, "BankExpansionLayout"); int on = bank && *(uint8_t *)(bank + 0x50); static int was = -1; g_mv_want[MV_WIDE] = on;
+    uint64_t bank = ui_panel(root, "BankExpansionLayout"); int on = bank && has_visible_leaf(bank, 1); static int was = -1; g_mv_want[MV_WIDE] = on;
     if (!on && !was && !mv_count(MV_WIDE)) return;   // 关着且已还原：每帧只扫根下一层 | Closed and already restored: only scan one level under the root each frame
-    uint64_t ov = ui_panel(root, "ControllerOverlay"); if (!ov || !ui_find(ov, "WideBackground", 0)) { was = 0; return; }   // 资源里没有宽框：不动 | No wide frame in the assets: leave it alone
+    uint64_t ov = ui_panel(root, "ControllerOverlay");
+    // 外框重建 / 切回不带宽框的布局时，也要清理仍存活的物品栏偏移。
+    // Restore surviving inventory offsets when the overlay is rebuilt or has no wide frame.
+    if (!ov || !ui_find(ov, "WideBackground", 0)) g_mv_want[MV_WIDE] = on = 0;
     if (on != was) { LOG("储藏箱加宽：%s", on ? "开（宽外框、物品栏右移）" : "关（还原）"); was = on; }
     // 标题条 Tabs 两等分，改它的宽不会重分（实测）；直接改它的两个字控件：Text0 原 x 0 宽 1440 → 左半 -196..1636，Text1 原 x 1440 → 右半 1636..3076
     // The title bar Tabs splits in two equal halves, and changing its width does not re-split (measured); change its two text widgets directly: Text0 originally x 0 width 1440 → left half -196..1636, Text1 originally x 1440 → right half 1636..3076
+    if (!on) { mv_restore(root, MV_WIDE); return; }
     uint64_t tb = ui_find(ov, "Tabs", 0);
     // 标题条两端的端帽挂在居中 2880 宽的容器上，各往外挪 196
     // The end caps at both ends of the title bar hang on a centered 2880-wide container; each moves outward by 196
     static const struct { const char *nm; int in, dx, dw; } t[] = { { "WideBackground", 1, -196 - 99999, 0 }, { "Text0", 2, -196, 392 }, { "Text1", 2, 196, 0 },
         { "TabsEndcapLeft", 1, -196, 0 }, { "TabsEndcapRight", 1, 196, 0 }, { "ControllerCursorBounds", 1, -196, 392 }, { "BankExpansionLayout", 0, -196, 392 }, { "PlayerInventoryExpansionLayout", 0, 196, 0 } };
-    if (!on) { mv_restore(root, MV_WIDE); return; }
     for (int i = 0; i < 8; i++) { uint64_t w = t[i].in == 2 ? (tb ? ui_find(tb, t[i].nm, 0) : 0) : t[i].in ? ui_find(ov, t[i].nm, 0) : ui_panel(root, t[i].nm); if (!w) continue;
         float k = t[i].in ? 1.0f : *(float *)(w + 0x80);   // 面板矩形挪 1 单位，画面只挪 1 / 面板缩放（+0x80，iOS 档 1.2）个外框单位：照外框单位写只挪到 5/6（叉偏右 33、面板边对不上框） | Moving the panel rect by 1 unit moves the picture by only 1 / panel scale (+0x80, 1.2 in the iOS mode) outer-frame units: writing in outer-frame units only moves it 5/6 of the way (the X is off to the right by 33 and the panel edge does not line up with the frame)
         mv_offset(MV_WIDE, w, 0, (int)lroundf(t[i].dx * k), 1); mv_offset(MV_WIDE, w, 2, (int)lroundf(t[i].dw * k), 1); }
@@ -2850,6 +2896,11 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
             if (((int (*)(uint64_t, uint64_t))fn)(yes, xy) & 1) { atomic_store(&g_del_hold, 1); atomic_store(&g_ut_phase, 0); LOG("前端路径：删除角色弹窗按住「是」→ 按住 A 到松手"); }
             else atomic_store(&g_del_q, 0); }
         else atomic_store(&g_del_q, 0); }
+    // 任务日志（#198）：到点、手指没按着、对白还在播：在正在播的那个任务上补一次点击（按下停对白，抬起不再触发什么）
+    // Quest log (#198): when due, with no finger down and the dialogue still playing, add one click on the quest being played (the press stops the dialogue; the release triggers nothing)
+    { uint64_t qs = atomic_load(&g_qt_stop_at);
+      if (qs && fr >= qs && !atomic_load(&g_ut_phase)) { atomic_store(&g_qt_stop_at, 0);
+          if (atomic_load(&g_qt_speech)) { atomic_store(&g_ut_xy, atomic_load(&g_qt_xy)); atomic_store(&g_ut_phase, 2); } } }
     int ph = atomic_load(&g_ut_phase); if (!ph) return;
     last_frame = fr;
     module_t *m = main_module(); if (!m) return;
@@ -2886,6 +2937,13 @@ void dm_ui_mouse_pump(void) {   // 游戏取手柄处调（hle_hid fill，主线
             ((void (*)(uint64_t, int))(m->base + 0xc2cf24))(ws[i], 3); static int lg; if (lg++ < 12) LOG("前端路径：职业选择页改选 %s → 让出列中的 %s 归队", k_cc_class[hit], k_cc_class[i]); }
         if (pn && hit >= 0 && ws[hit] && *(int32_t *)(ws[hit] + 0x13f4) == 3) ((void (*)(uint64_t, int))(m->base + 0xc2cf24))(ws[hit], 0);   // 被点的这位还在归队途中：先回到待机，游戏才收这次点击 | the one tapped is still on its way back to the lineup: return it to idle first, and only then does the game accept this click
     }
+    // 任务日志（#198，见 g_qt_arm）：按下之前分类。空处：对白播着就改点正在播的任务（挪过去后照常先悬停两帧），否则不点
+    // Quest log (#198, see g_qt_arm): classify before the press. Empty space: while a dialogue plays, retarget to the quest being played (after moving it hovers two frames first as usual), otherwise no click
+    if (ph == 2) { int qt = quest_log_tap(m, root, x, y); atomic_store(&g_qt_arm, qt == 1);
+        if (qt == 1) { atomic_store(&g_qt_sel, 0); atomic_store(&g_qt_fin, 0); atomic_store(&g_qt_dn, r); }
+        else if (qt == 2) { uint64_t q = atomic_load(&g_qt_xy);
+            if (atomic_load(&g_qt_speech) && q && q != r) { atomic_store(&g_ut_xy, q); LOG("任务日志：对白播着时点了空处 (%d,%d) → 改点正在播的任务（停对白、保留目标）", x, y); return; }
+            int e = 2; atomic_compare_exchange_strong(&g_ut_phase, &e, 0); LOG("任务日志：点了空处 (%d,%d) → 不发给游戏（原版会取消选中、目标清空）", x, y); return; } }
     if (ph == 2 && ui_bind_modal_tap(root, x, y)) { int e = 2; atomic_compare_exchange_strong(&g_ut_phase, &e, 0); return; }
     if (ph == 2 && (dm_ui_panel_state() & DM_PS_VAULT)) { int dm_vault_ui_tap(int, int); if (dm_vault_ui_tap(x, y)) { int e = 2; atomic_compare_exchange_strong(&g_ut_phase, &e, 0); return; } }   // 编年史页的格子：单击说明 / 双击取出（dm_vault_ui.c），不发鼠标 | cells on the chronicle page: single tap for description / double-tap to take out (dm_vault_ui.c), no mouse event is sent
     if (ph == 2) {   // 合成钮（魔盒页 / 储藏箱魔盒格的 convert）：手上有物品时原版服务端直接丢掉这次合成（0x6e8740），先收进背包再按（兜底，守门之外再保一道） | transmute button (convert on the cube page / the stash cube cell): with an item in hand the original server simply drops this transmute (0x6e8740), so stow it into the inventory first and then press (a fallback, one more safeguard beyond the gatekeeping)
@@ -2999,6 +3057,17 @@ void dm_ui_on_uimsg(const char *cat, const char *act, const char *arg) {
     if (!strcmp(cat, "ProgressionMessage") && !strcmp(act, "PlayVideo")) atomic_store(&g_map_movie, 1);   // 过场开播 / 播完（含按键跳过）、出局：见 ui_map_pump | Cutscene starts / ends (skipping included), leaving the run: see ui_map_pump
     else if ((!strcmp(cat, "Cinematics") && !strcmp(act, "MovieComplete")) || (!strcmp(cat, "FrontEndNavigation") && !strcmp(act, "ToFrontEnd"))) atomic_store(&g_map_movie, 0);
     if (!strcmp(cat, "QuestLogPanelMessage") && !strcmp(act, "DialogueFinished")) atomic_store(&g_speech_end, dm_guest_frame());
+    // 任务日志（#198，见 g_qt_arm）
+    // Quest log (#198, see g_qt_arm)
+    if (!strcmp(cat, "QuestLogPanelMessage")) {
+        if (!strcmp(act, "SelectQuest") && atomic_load(&g_qt_arm)) atomic_store(&g_qt_sel, 1);
+        else if (!strcmp(act, "DialogueFinished") && atomic_load(&g_qt_arm)) atomic_store(&g_qt_fin, 1);
+        else if (!strcmp(act, "PlayDialogue") && atomic_exchange(&g_qt_arm, 0)) { atomic_store(&g_qt_xy, atomic_load(&g_qt_dn));
+            if (atomic_load(&g_qt_sel) && !atomic_load(&g_qt_fin)) { atomic_store(&g_qt_stop_at, dm_guest_frame() + 2); LOG("任务日志：点了新任务、对白开播 → 替玩家再点一下停对白，直接显示当前目标"); } } }
+    if (!strcmp(cat, "PanelManager") && arg && !strcmp(arg, "QuestLogSpeechPanel")) {
+        if (!strcmp(act, "OpenPanel")) atomic_store(&g_qt_speech, 1);
+        else if (!strcmp(act, "ClosePanel") || !strcmp(act, "UnloadPanel")) atomic_store(&g_qt_speech, 0); }
+    if (!strcmp(cat, "PanelManager") && arg && !strcmp(arg, "QuestLogPanelExpansion") && (!strcmp(act, "ClosePanel") || !strcmp(act, "UnloadPanel"))) { atomic_store(&g_qt_xy, 0); atomic_store(&g_qt_stop_at, 0); atomic_store(&g_qt_arm, 0); }
     if (!strcmp(cat, "PanelManager")) ui_panel_note(act, arg ? arg : "");
     if (!strcmp(cat, "ChroniclePanelMessage") && !strcmp(act, "ToggleChildPanel") && arg && arg[0]) { int c = 0; while (c < 8 && g_chr_child[c][0] && strcmp(g_chr_child[c], arg)) c++; if (c < 8 && !g_chr_child[c][0]) strlcpy(g_chr_child[c], arg, sizeof g_chr_child[c]); }
     if (!strcmp(cat, "PanelManager") && arg && !strcmp(arg, "ChroniclePanel") && (!strcmp(act, "ClosePanel") || !strcmp(act, "UnloadPanel"))) atomic_store(&g_chr_closed, 1);
@@ -3305,6 +3374,7 @@ void dm_ui_auto_mode_leave(void) {
     atomic_store(&g_fe_skip_tut, 0); atomic_store(&g_fe_back, 0); atomic_store(&g_fe_options, 0); atomic_store(&g_fe_name, 0); atomic_store(&g_fe_name_done, 0); atomic_store(&g_fe_name_key, 0); atomic_store(&g_fe_name_tap, 0);
     atomic_store(&g_fe_key_until, 0); atomic_store(&g_fe_key_mask, 0); atomic_store(&g_pulse_until, 0);   // 「独占的一下」（g_alone_*：进局常态替按一次显示物品键）不在此列：它不是触摸点击排下的，两种模式都要发，由它自己等切换完成（dm_ui_alone_take） | "The exclusive press" (g_alone_*: the one show-items key press made routinely on entering a run) is not among these: it is not queued by a touch tap and must be sent in both modes; it waits for the switch to finish by itself (dm_ui_alone_take)
     atomic_store(&g_set_back_at, 0); atomic_store(&g_speech_back_at, 0); atomic_store(&g_tab_left, 0); atomic_store(&g_tab_direct, 0); atomic_store(&g_tab_then, 0); atomic_store(&g_del_q, 0); atomic_store(&g_del_hold, 0);
+    atomic_store(&g_qt_arm, 0); atomic_store(&g_qt_speech, 0); atomic_store(&g_qt_xy, 0); atomic_store(&g_qt_stop_at, 0);
 }
 // 界面触摸这一层记着的控件地址与挪位表：挪过的原版控件先写回原值（重建后有的面板原样留着），再把记的地址清掉（重建后旧地址是悬空的，新控件正好分配在旧地址上时认不出）
 // Widget addresses and the move table remembered by this UI touch layer: moved original widgets are first written back to their original values (after a rebuild some panels are kept as they were), then the remembered addresses are cleared (after a rebuild the old addresses are dangling, and when a new widget happens to be allocated at an old address the two cannot be told apart)

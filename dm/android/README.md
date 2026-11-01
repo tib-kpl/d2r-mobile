@@ -95,6 +95,7 @@ it into the internal directories below.
 | App internal `files/dm/shaders/` | External `.xgs` bundles matching the game and Vulkan backend |
 | App internal `files/dm/overlay/` | Required CASC touch overlay, including `overlay.manifest`, generated from the matching source and the user's resources |
 | App internal `files/dm/overlay/touchart/`, `files/dm/overlay/hud_v4_ui/` | Skill atlases and their silver silhouettes, map icon, circle frame, bottom bar art, and the skill-button socket (the repository's `dm/ios/Sources/ControlArt/dm_mobile_socket.png`), staged by `stage_touch_assets.py`. The touch controls draw them the same way as iOS (`dm/ios/Sources/DmTouchControlArt.h`, `DmTouchOverlay.m`); the joystick is drawn in code |
+| App internal `files/dm/overlay_variants/` | Optional: a complete overlay per combination of the Custom switches that go through the overlay (now only "Item notes and old names"), each with its own `overlay.manifest`; at start the App layers the one matching the switches in front of `overlay/` |
 | Shared `Download/S2X/D2R Mobile/data/` | User's resource archives and `.build.config`; requires Android's all-files-access setting. When this directory does not exist but the earlier `Download/data/` does, the App keeps using `Download/data/` |
 | App internal `files/dm/derived.tsv`, `files/dm/pack_info.txt` | Data tables generated from game files (read at startup by the release APK without game content); the import pack's product code and creation time |
 | App internal `files/save/` | Saves; preserve during upgrades |
@@ -142,8 +143,14 @@ A bundle set can also carry `vk-pipeline-list.seed`. On a first launch, before
 lists during start-up, so a first visit to the places it covers does not
 stutter while pipelines build. `dm/android/tools/merge_warm_lists.py` merges
 several devices' `files/dm/vk-pipeline-list.bin` into one seed. A seed only
-works with the bundles it was recorded with, so it ships with them. The
-measurements are in `docs/android-notes/2026-10-22-first-play-stutter.md`.
+works with the bundles it was recorded with, so it ships with them:
+`dm/tools/d2rm_android.py --warm-seed <file>` puts one into the import pack,
+checks it before the slow steps, and records it in `pack_info.txt` as
+`WARM_SEED=<sha256 prefix>`. Keep seeds outside the repository. The seed only
+helps a first launch: a phone that already has `files/dm/vk-pipeline-list.bin`
+keeps using its own list after a re-import. The tool's check runs with
+`make -C dm/host/tests run` (or `python3 dm/tools/tests/test_warm_seed.py`).
+The measurements are in `docs/android-notes/2026-10-22-first-play-stutter.md`.
 
 ## Validation and remaining work
 

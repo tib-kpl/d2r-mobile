@@ -137,13 +137,13 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     // events do not go to PadInput: it calls native methods, which throw UnsatisfiedLinkError while the library is not loaded and kill the app
     // (#178: connecting a controller after installing a new version, before the import, crashed it). The system handles them as on any other screen
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
-        if (started && inputDialog == null && gameFrame.getParent() != null
+        if (libraryLoaded && started && inputDialog == null && gameFrame.getParent() != null
                 && (original133 ? gamepad.key(e) : PadInput.onKey(e))) return true;
         return super.dispatchKeyEvent(e);
     }
 
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
-        if (started && inputDialog == null && gameFrame.getParent() != null
+        if (libraryLoaded && started && inputDialog == null && gameFrame.getParent() != null
                 && (original133 ? gamepad.motion(e) : PadInput.onMotion(e))) return true;
         return super.onGenericMotionEvent(e);
     }

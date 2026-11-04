@@ -47,10 +47,10 @@ android {
         buildConfigField 'String', 'DM_PRODUCT', "\"${file('../../PRODUCT').readLines()[0].trim()}\""
         minSdk 31
         targetSdk 36
-        // CI supplies the numeric release name and keeps versionCode = 20110 + workflow run number,
-        // preserving upgrade compatibility with previously published APKs. Local builds use defaults.
-        versionCode = (project.findProperty('dmVersionCode') ?: '20110').toInteger()
-        versionName project.findProperty('dmVersionName') ?: '2.2.0'
+        // 跟发布版本走：versionName = 发布版本号，versionCode = 主 × 10000 + 次 × 100 + 修订（2.0.0 → 20000），只增不减，旧版才能被覆盖升级
+        // Follows the release: versionName = release version, versionCode = major × 10000 + minor × 100 + patch (2.0.0 → 20000), only ever increasing so older installs upgrade in place
+        versionCode 20300
+        versionName '2.3.0'
         ndk { abiFilters 'arm64-v8a' }
         if (!prebuilt) externalNativeBuild { cmake {
             arguments "-DDM_GEN_DIR=${project.findProperty('dmGenDir') ?: ''}"
@@ -75,4 +75,15 @@ android {
     buildTypes { release { minifyEnabled false; if (releaseKey) signingConfig signingConfigs.release } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
+// CI 版本覆盖放在上游发布版本块之外，避免每次上游升版时产生合并冲突。
+// Apply CI version overrides outside the upstream release block to avoid conflicts on upstream version bumps.
+// versionCode 保持 20110 + 工作流运行编号，确保已发布 APK 可继续升级。
+// Keep versionCode = 20110 + workflow run number so previously published APKs can still upgrade.
+if (project.hasProperty('dmVersionCode')) {
+    android.defaultConfig.versionCode = project.property('dmVersionCode').toInteger()
+}
+if (project.hasProperty('dmVersionName')) {
+    android.defaultConfig.versionName = project.property('dmVersionName')
+}
+
 tasks.named('preBuild').configure { dependsOn(generateStartupStrings, generateLauncherIcon, generateMovieNotices) }

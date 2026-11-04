@@ -69,6 +69,21 @@ class AssetContract(unittest.TestCase):
                 for key in ('dmAndroidAttack', 'dmCancel', 'dmAndroidChooseFolder', 'dmAndroidMissingData'):
                     self.assertIn(key, names)
 
+    def test_hud_strings_available_in_all_languages(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); strings.generate(root)
+            for folder in ('values', 'values-zh', 'values-pt', 'values-fr'):
+                text = (root / folder / 'strings.xml').read_text(encoding='utf-8')
+                # 资源名保留表里的大小写（代码里是 R.string.dmHudLife） | Resource names keep the table's case (the code uses R.string.dmHudLife)
+                for key in ('dmHudLife', 'dmHudMana', 'dmTcCancel', 'dmAndroidHudLevel'):
+                    self.assertIn('name="' + key + '"', text)
+                self.assertIn('formatted="false"', text)
+            # 葡语不是英文的副本：HUD 与触屏按钮都得是表里的 ptBR 列 | Portuguese is not a copy of English: HUD and touch labels use the table's ptBR column
+            pt = (root / 'values-pt' / 'strings.xml').read_text(encoding='utf-8')
+            self.assertIn('>Vida: %d / %d<', pt)
+            self.assertIn('>Mana: %d / %d<', pt)
+            self.assertIn('>Nv. %d · %d%%<', pt)
+
 
 if __name__ == '__main__':
     unittest.main()

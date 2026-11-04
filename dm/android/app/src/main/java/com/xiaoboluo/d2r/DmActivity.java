@@ -33,6 +33,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -42,8 +43,10 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -90,6 +93,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
     private FrameLayout gameFrame;
     private TouchOverlay touchOverlay;
     private boolean started;
+    private boolean savesTransferred;
     private boolean libraryLoaded;
     private boolean resumed;
     private boolean pickingFolder;
@@ -288,6 +292,28 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
         return null;
     }
 
+    // 存档导出 / 导入（SaveTransfer）：游戏文件夹里放了 export 记号或 save-import 文件夹时，在原生库加载之前、每个进程做一次，结果用一条提示告诉玩家
+    // Save export / import (SaveTransfer): with an export marker or a save-import folder in the game folder, done once per process before the native
+    // library loads, and the result is told to the player in a toast
+    private void transferSaves(File game) {
+        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date());
+        for (SaveTransfer.Result r : SaveTransfer.run(game, new File(getFilesDir(), "save"), stamp)) {
+            String where = r.path == null ? null : new File(game, r.path).getAbsolutePath();
+            String text = switch (r.kind) {
+                case SaveTransfer.EXPORTED -> getString(R.string.dmAndroidSaveExported, where);
+                case SaveTransfer.EXPORT_EMPTY -> getString(R.string.dmAndroidSaveExportEmpty);
+                case SaveTransfer.IMPORTED -> r.path == null ? (r.skipped == null ? null : getString(R.string.dmAndroidSaveImportNothing, r.skipped))
+                    : r.skipped == null ? getString(R.string.dmAndroidSaveImported, r.path) : getString(R.string.dmAndroidSaveImportedSome, r.path, r.skipped);
+                case SaveTransfer.IMPORT_REJECTED -> getString(R.string.dmAndroidSaveImportRejected, r.path);
+                default -> getString(R.string.dmAndroidSaveTransferFailed, r.path);
+            };
+            android.util.Log.i("dm", "存档导出 / 导入：结果 " + r.kind + "，" + r.path + (r.skipped == null ? "" : "，已有没导：" + r.skipped) + (r.merge == SaveTransfer.MERGE_NONE ? "" : "，共享仓库并回 " + r.merge));
+            if (text != null) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+            if (r.merge != SaveTransfer.MERGE_NONE)
+                Toast.makeText(this, getString(r.merge == SaveTransfer.MERGE_QUEUED ? R.string.dmAndroidSaveStashMerge : r.merge == SaveTransfer.MERGE_ALREADY ? R.string.dmAndroidSaveStashMerged : R.string.dmAndroidSaveStashSamePhone), Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void startHost() {
         if (bootFailure != 0) { showBootFailure(); return; }
         if (started || pickingFolder || folderPendingRestart || !resumed || !ensureFileAccess()) return;
@@ -306,6 +332,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
             showStartError(getString(R.string.dmAndroidStartFailed, -11)); return;
         }
         original133 = "original133".equals(profile);
+        if (!libraryLoaded && !savesTransferred) { savesTransferred = true; transferSaves(chosen); }
         if (gameFrame.getParent() == null) setContentView(gameFrame);
         if (!libraryLoaded) {
             // 原生构造函数与 JNI 共用选定目录，不导入另一份。
@@ -331,6 +358,7 @@ public class DmActivity extends Activity implements SurfaceHolder.Callback, Disp
                 touchOverlay.setSafeInsets(safe.left, safe.right, safe.bottom);
                 return insets;
             });
+            if (BuildConfig.DEBUG && getIntent().getBooleanExtra("dmNoHud", false)) touchOverlay.setDebugNoHud(true);   // 调试包：量游戏自己的 HUD 时不画自绘层 | debug builds: no overlay drawing while measuring the game's own HUD
             gameFrame.addView(touchOverlay, new FrameLayout.LayoutParams(-1, -1));
             touchOverlay.requestApplyInsets();
         }

@@ -7,7 +7,7 @@
 #   游戏文件目录 = Switch 版 3.3.94012 的 Update 目录，里面有 ExeFS/{main,sdk} 与 RomFS/data/…（怎么从自己的游戏导出）
 #   工作目录（缓存与中间产物，约 12 GB）：环境变量 DM_ROOT，缺省 ~/dm-work；每一步做过就跳过
 #   老机型（A16 及更早的芯片）：先做好贴图包，再带环境变量 D2RM_ASTC_PACK=<贴图包的 pack 目录> 运行本工具
-# 需要：Python 3.9+ 与 pillow numpy lz4 capstone unicorn；C 编译器（clang 或 gcc，解贴图的小段 C 用）；.NET SDK（编着色器翻译工具）；
+# 需要：Python 3.9+ 与 pillow numpy lz4 capstone；C 编译器（clang 或 gcc，解贴图的小段 C 用）；.NET SDK（编着色器翻译工具）；
 #   spirv-cross；苹果的 Metal 着色器编译器（Mac 上随 Xcode）。缺什么本工具开头会逐项报。
 # 它做的事与「./setup.sh + dm/ios/run.sh build 的生成部分」相同，只是最后不调 Xcode 构建，而是把产物放进壳里。
 # Make a playable install package without Xcode: build your own game files into the "shell".
@@ -18,7 +18,7 @@
 #   game files dir = the Update directory of the Switch version 3.3.94012, containing ExeFS/{main,sdk} and RomFS/data/... (how to export it from your own game)
 #   Work directory (cache and intermediates, about 12 GB): environment variable DM_ROOT, default ~/dm-work; every step that is already done is skipped
 #   Older devices (A16 and earlier chips): build the texture pack first, then run this tool with D2RM_ASTC_PACK=<the texture pack's pack directory>
-# Requires: Python 3.9+ with pillow numpy lz4 capstone unicorn; a C compiler (clang or gcc, for a small C texture decoder); the .NET SDK (to build the shader translator);
+# Requires: Python 3.9+ with pillow numpy lz4 capstone; a C compiler (clang or gcc, for a small C texture decoder); the .NET SDK (to build the shader translator);
 #   spirv-cross; Apple's Metal shader compiler (comes with Xcode on a Mac). The tool lists anything missing at the start.
 # It does the same as the generation part of ./setup.sh + dm/ios/run.sh build, except that instead of building with Xcode it puts the results into the shell.
 import hashlib, json, os, re, runpy, shutil, subprocess, sys, time, zipfile
@@ -67,9 +67,9 @@ def read_shell(ipa):
 
 def check_env(game):
     bad = []
-    for m in ('PIL', 'numpy', 'lz4', 'capstone', 'unicorn'):
+    for m in ('PIL', 'numpy', 'lz4', 'capstone'):
         try: __import__(m)
-        except Exception: bad.append('Python 包 %s：%s -m pip install pillow numpy lz4 capstone unicorn' % (m, PY))
+        except Exception: bad.append('Python 包 %s：%s -m pip install pillow numpy lz4 capstone' % (m, PY))
     if not (shutil.which('clang') or shutil.which('gcc') or shutil.which('cc')): bad.append('C 编译器（clang 或 gcc）')
     dotnet = shutil.which('dotnet') or (os.path.expanduser('~/.dotnet/dotnet') if os.path.exists(os.path.expanduser('~/.dotnet/dotnet')) else None)
     # 编出来的翻译工具是个独立的小程序，启动时自己找 .NET 运行时：只认 DOTNET_ROOT 和几个固定位置（Homebrew、发行版自带的常不在其中），找不到就起不来，
@@ -86,6 +86,72 @@ def check_env(game):
         if not os.path.isfile(os.path.join(game, f)): bad.append('游戏文件 %s（在 %s 下没找到）' % (f, game))
     if bad: die('还缺 %d 项：\n  - %s' % (len(bad), '\n  - '.join(bad)))
     return dotnet
+
+
+def game_layout(game):
+    """S2Arm 解包目录（exefs/ romfs/ 小写）也认：游戏目录里没有 ExeFS/ 而有 exefs/、romfs/ 时（区分大小写的盘上），在工作目录下用软链摆成本工具要的形状，不拷文件
+    | An S2Arm extraction (lower-case exefs/ romfs/) is accepted too: when the game directory has exefs/ and romfs/ but no ExeFS/ (on a case-sensitive volume), lay it out in the shape this tool wants with symlinks under the work directory, copying nothing"""
+    if os.path.isdir(os.path.join(game, 'ExeFS')) or not (os.path.isdir(os.path.join(game, 'exefs')) and os.path.isdir(os.path.join(game, 'romfs'))):
+        return game
+    d = os.path.join(ROOT, 'build', 'pack', 'game'); shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
+    for a, b in (('ExeFS', 'exefs'), ('RomFS', 'romfs')): os.symlink(os.path.join(game, b), os.path.join(d, a), target_is_directory=True)
+    return d
+
+
+def place_xlate(xl, z=None):
+    """预编的着色器翻译工具（S2Arm 启动器只带 .NET 运行时、没有 SDK，现编不了）：环境变量 DM_XLATE_PREBUILT=<目录>，或壳 zip 顶层 Tools/dmsh_xlate/（出壳时预编，不进安装包）。
+    放好返回 True；都没有返回 False，调用方照旧用 SDK 现编
+    | The prebuilt shader translator (the S2Arm launcher carries only the .NET runtime, no SDK, so it cannot build one): DM_XLATE_PREBUILT=<directory>, or the top-level Tools/dmsh_xlate/ of the shell zip (prebuilt when the shell is built, not put into the install package).
+    Returns True when placed; False when there is neither, and the caller builds it with the SDK as before"""
+    src = os.environ.get('DM_XLATE_PREBUILT', '').strip()
+    names = [n for n in (z.namelist() if z else []) if n.startswith(XLATE_IN_SHELL) and not n.endswith('/')]
+    if not src and not names: return False
+    shutil.rmtree(xl, ignore_errors=True); os.makedirs(xl)
+    if src: shutil.copytree(src, xl, dirs_exist_ok=True)
+    else:
+        for n in names:
+            f = os.path.join(xl, n[len(XLATE_IN_SHELL):]); os.makedirs(os.path.dirname(f), exist_ok=True)
+            with open(f, 'wb') as o: o.write(z.read(n))
+    for e in ('dmsh_xlate', 'dmsh_xlate.exe'):
+        if os.path.isfile(os.path.join(xl, e)): os.chmod(os.path.join(xl, e), 0o755)
+    say('着色器翻译工具：用预编的（%s）' % (src or '壳里带的'))
+    return True
+
+
+XLATE_IN_SHELL = 'Tools/dmsh_xlate/'
+
+
+# 手机上要的游戏资源档案：与宿主 host/romfs_validate.c 的 need[] 同一份（dm/tools/tests/test_s2arm_pack.py 核两处一致）
+# The game resource archives the phone needs: the same list as need[] in host/romfs_validate.c (dm/tools/tests/test_s2arm_pack.py checks the two agree)
+PHONE_ARCHIVES = ['00-00000001.data', '00-00000002.data', '00-00000003.data', '00-00000004.data', '00-00000005.data', '00-00000006.data',
+                  '01-00000001.data', '01-00000002.data', '02-00000001.data', '02-00000002.data', '03-00000001.data', '03-00000002.data',
+                  '04-00000001.data', '04-00000002.data', '05-00000001.data', '05-00000002.data', '17-00000001.data', '17-00000002.data']
+
+
+def s2arm_pack(romfs, dst):
+    """S2Arm 资源包（S2Arm 启动器照它推进手机，App 按 S2A_PACK_APPLY_ONLY 解开，见 ios/Sources/s2a_pack_apply.c）：
+    <dst>/data/<档名>（APFS 克隆，不占新空间；跨卷 / 别的系统退回普通拷贝）+ index.tsv（路径 \t 字节数 \t SHA-256）+ manifest.json（version 2、index_sha256 = index.tsv 文本的 SHA-256），清单最后写
+    | An S2Arm resource pack (the S2Arm launcher pushes it to the phone as is, and the App unpacks it under S2A_PACK_APPLY_ONLY, see ios/Sources/s2a_pack_apply.c):
+    <dst>/data/<archive> (APFS clone, no new space; a plain copy across volumes / on other systems) + index.tsv (path \t bytes \t SHA-256) + manifest.json (version 2, index_sha256 = SHA-256 of the index.tsv text), manifest written last"""
+    os.makedirs(os.path.join(dst, 'data'), exist_ok=True)
+    m = os.path.join(dst, 'manifest.json')
+    if os.path.exists(m): os.remove(m)   # 更新期间标成不完整 | marked incomplete while updating
+    rows, total = [], 0
+    for n in PHONE_ARCHIVES:
+        src, out = os.path.join(romfs, 'data', n), os.path.join(dst, 'data', n)
+        if not os.path.isfile(src): die('游戏资源里缺 %s（%s）' % (n, src))
+        if not (os.path.isfile(out) and os.path.getsize(out) == os.path.getsize(src)):
+            if os.path.exists(out): os.remove(out)
+            if not (sys.platform == 'darwin' and subprocess.run(['cp', '-c', src, out], stderr=subprocess.DEVNULL).returncode == 0): shutil.copyfile(src, out)
+        h = hashlib.sha256()
+        with open(out, 'rb') as f:
+            for b in iter(lambda: f.read(8 << 20), b''): h.update(b)
+        size = os.path.getsize(out); total += size; rows.append('data/%s\t%d\t%s\n' % (n, size, h.hexdigest()))
+    index = ''.join(rows)
+    with open(os.path.join(dst, 'index.tsv'), 'w', encoding='utf-8', newline='\n') as f: f.write(index)
+    with open(m + '.tmp', 'w', encoding='utf-8') as f: json.dump({'version': 2, 'files': len(rows), 'total': total, 'index_sha256': hashlib.sha256(index.encode()).hexdigest()}, f, indent=1)
+    os.replace(m + '.tmp', m)
+    return len(rows), total
 
 
 def have_metal():   # 这台机器上有没有苹果的 Metal 着色器编译器（只有装了 Xcode 的 Mac 有） | whether this machine has Apple's Metal shader compiler (only a Mac with Xcode installed has it)
@@ -115,6 +181,7 @@ def main():
         except Exception: pass
     if not os.path.isfile(shell): die('没有这个壳文件：%s' % shell)
     if not os.path.isdir(game): die('没有这个游戏文件目录：%s' % game)
+    game = game_layout(game)
     z, base, manifest, info, exe = read_shell(shell)
     P = open(os.path.join(DM, 'PRODUCT')).readline().strip()
     if info.get('PRODUCT') != P: die('壳与这份源码不是同一版：壳要的产物代号是 %s，这份源码是 %s。请用与壳同一个发布版本的源码' % (info.get('PRODUCT'), P))
@@ -184,7 +251,7 @@ def main():
     step('取着色器包（162 个）', lambda: os.path.isdir(packs) and len(os.listdir(packs)) == 162, get_packs)
     xl = os.path.join(ROOT, 'build', 'gfx', 'dmsh_xlate')
     step('编译着色器翻译工具', lambda: os.path.isfile(os.path.join(xl, 'dmsh_xlate')) or os.path.isfile(os.path.join(xl, 'dmsh_xlate.exe')),
-         lambda: run([dotnet, 'publish', os.path.join(GT, 'dmsh_xlate'), '-c', 'Release', '-o', xl, '-v', 'quiet'], what='编译着色器翻译工具'))
+         lambda: place_xlate(xl, z) or run([dotnet, 'publish', os.path.join(GT, 'dmsh_xlate'), '-c', 'Release', '-o', xl, '-v', 'quiet'], what='编译着色器翻译工具'))
     chk = lambda: subprocess.run(gt('dmsh_chain.py', '--check-tools'), env=dict(os.environ, DM_ROOT=ROOT, PYTHONUTF8='1'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     if not chk():   # 本机工具与仓库登记的不同是正常的：按本机工具重新登记（会改写仓库里三个随工具变的文件，不要提交它们） | it is normal for the local tools to differ from what the repository registers: re-register by the local tools (this rewrites the three tool-dependent files in the repository; do not commit them)
         say('本机工具与仓库登记的不同：按本机工具重新登记翻译链')
@@ -248,7 +315,8 @@ def main():
     if miss: die('有 %d 项没做出来：%s。壳的清单里要、而这份工具没有生成——壳与工具不是同一版。请用与这份仓库同一版本的壳（发布页最新的 D2RMobile-shell-build-input.zip），或把仓库更新到与壳对应的版本' % (len(miss), '、'.join(miss)))
     tmp = out_ipa + '.part'; added = 0
     with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as o:
-        for i in z.infolist(): o.writestr(i, z.read(i.filename))
+        for i in z.infolist():
+            if not i.filename.startswith('Tools/'): o.writestr(i, z.read(i.filename))   # 壳顶层 Tools/（预编的翻译工具）只给本工具用，不进安装包 | the shell's top-level Tools/ (prebuilt translator) is for this tool only, not for the install package
         for m in manifest + extra:
             src = os.path.join(stage, m)
             files = [os.path.join(d, f) for d, _, fs in sorted(os.walk(src)) for f in sorted(fs)] if m.endswith('/') else [src]
@@ -257,6 +325,10 @@ def main():
                 zi.external_attr = (0o755 if os.path.basename(f) == 'Guest' else 0o644) << 16; o.writestr(zi, open(f, 'rb').read()); added += 1
     os.replace(tmp, out_ipa)
     say('好了：%s（%.0f MB，放进去 %d 个文件）。下一步：用自签工具给它签名装机（见 docs 里的说明）；这个安装包里有游戏内容，请只自己用' % (out_ipa, os.path.getsize(out_ipa) / 1048576, added))
+    # S2Arm 启动器出包时顺带出 S2Arm 资源包（D2RM_S2ARM_PACK=<目录>），它装机后按自己的推送把资源放进手机 | when the S2Arm launcher packs, also write an S2Arm resource pack (D2RM_S2ARM_PACK=<dir>) that it pushes to the phone after installing
+    sp = os.environ.get('D2RM_S2ARM_PACK', '').strip()
+    if sp:
+        n, total = s2arm_pack(romfs, os.path.abspath(sp)); say('S2Arm 资源包：%s（%d 个档案，%.2f GB）' % (sp, n, total / 1e9))
 
 
 if __name__ == '__main__': main()

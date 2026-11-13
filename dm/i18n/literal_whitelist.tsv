@@ -110,3 +110,6 @@ ios/Sources/main.m	图形芯片不支持 Metal 3	拦下原因只进日志（弹�
 host/loader.c	苹果	改写产物目标平台名，只进装载器的错误日志
 host/loader.c	安卓	同上
 host/loader.c	鸿蒙	同上
+ios/Sources/s2a_pack_apply.c	*	S2Arm 资源包解包：错误文字只写进 unpack.log，上屏的是 dmImportFail（取日志末行）；资源包目录名是磁盘上的目录名 | pack-unpack error text goes only to unpack.log (the screen shows dmImportFail with its last line); the pack folder name is an on-disk name
+ios/Sources/main.m	资源包/.incoming	资源包目录名（磁盘上的目录名，不上屏） | the resource-pack folder name, an on-disk name that never reaches the screen
+ios/Sources/main.m	解包失败：	在 unpack.log 末行里找这个前缀来截掉（解析日志，不上屏） | the prefix looked for in unpack.log's last line to cut it off (log parsing, not shown)

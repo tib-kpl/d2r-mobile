@@ -61,5 +61,12 @@ boxes = re.findall(r'"(TouchCustom_lang_[a-z]+)"', re.search(r'k_lang_box\[LANG_
 assert boxes == ['TouchCustom_lang_' + k for k, _, _, _, _ in opts], boxes
 hints = re.findall(r'"(TouchCustomLangHint[A-Za-z]+)"', re.search(r'k_lang_hint\[LANG_N\].*?=\s*\{(.*?)\}', host, re.S)[1])
 assert hints == ['TouchCustomLangHint' + cap for _, cap, _, _, _ in opts], hints
-assert re.search(r'#define LANG_N 7\b', host), 'LANG_N must be 7'
-print('PASS touch layout language row: seven-option radio in three rows, labels, hints, checkbox column and host order')
+assert re.search(r'#define LANG_N 7b\b', host), 'LANG_N must be 7'
+# 自定义页里每个「@键」都要在中英表里，否则游戏显示「丢失字符串」（#235：#224 加了葡语这一项，表里却漏了 dmCustomLangPtOpt 与 dmCustomLangHintPt）
+# Every "@key" on the Custom page must be in the string table, or the game shows "missing string" (#235: #224 added the Portuguese option
+# but left dmCustomLangPtOpt and dmCustomLangHintPt out of the table)
+import dm_i18n
+table = {row[0] for row in dm_i18n.rows()}
+refs = set(re.findall(r'"@(dm[A-Za-z0-9_]+)"', out))
+assert refs and not refs - table, sorted(refs - table)
+print('PASS touch layout language row: seven-option radio in three rows, labels, hints, checkbox column and host order; %d Custom page keys all in the string table' % len(refs))

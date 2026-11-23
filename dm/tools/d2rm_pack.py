@@ -21,7 +21,7 @@
 # Requires: Python 3.9+ with pillow numpy lz4 capstone; a C compiler (clang or gcc, for a small C texture decoder); the .NET SDK (to build the shader translator);
 #   spirv-cross; Apple's Metal shader compiler (comes with Xcode on a Mac). The tool lists anything missing at the start.
 # It does the same as the generation part of ./setup.sh + dm/ios/run.sh build, except that instead of building with Xcode it puts the results into the shell.
-import hashlib, json, os, re, runpy, shutil, subprocess, sys, time, zipfile
+import filecmp, hashlib, json, os, re, runpy, shutil, subprocess, sys, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DM = os.path.dirname(HERE); IOS = os.path.join(DM, 'ios'); GT = os.path.join(DM, 'gfx', 'tools')
 ROOT = os.path.abspath(os.environ.get('DM_ROOT') or os.path.expanduser('~/dm-work'))
@@ -175,6 +175,46 @@ def place_xlate(xl, z=None):
 XLATE_IN_SHELL = 'Tools/dmsh_xlate/'
 
 
+def xlate_ready(xl, z=None):
+    """着色器翻译工具放好了、而且就是这次该用的那份。有预编的（DM_XLATE_PREBUILT，或壳里这个平台的那份）时逐个文件比字节：换了壳、
+    目录里还是旧壳留下的那份（例如 v2.3.1 的框架依赖版，要 .NET 才跑得起来，#299）就算没放好，place_xlate 会整个换掉。
+    没有预编的（开发者机器用 .NET SDK 现编）照旧只看文件在不在
+    | The shader translator is in place and is the one this run should use. With a prebuilt one (DM_XLATE_PREBUILT, or the shell's
+    copy for this platform) every file is compared byte for byte: after a shell change, a copy left by the old shell (for example
+    v2.3.1's framework-dependent one, which needs .NET to run, #299) does not count, and place_xlate replaces it whole. Without a
+    prebuilt one (developer machines build it with the .NET SDK) only the file's presence counts, as before"""
+    if not any(os.path.isfile(os.path.join(xl, e)) for e in ('dmsh_xlate', 'dmsh_xlate.exe')): return False
+    src = os.environ.get('DM_XLATE_PREBUILT', '').strip()
+    if src:
+        for root, _, files in os.walk(src):
+            for f in files:
+                a = os.path.join(root, f); b = os.path.join(xl, os.path.relpath(a, src))
+                if not os.path.isfile(b) or not filecmp.cmp(a, b, shallow=False): return False
+        return True
+    pre = XLATE_IN_SHELL + plat() + '/'
+    for n in (z.namelist() if z else []):
+        if not n.startswith(pre) or n.endswith('/'): continue
+        b = os.path.join(xl, n[len(pre):])
+        if not os.path.isfile(b) or os.path.getsize(b) != z.getinfo(n).file_size: return False
+        with open(b, 'rb') as f:
+            if f.read() != z.read(n): return False
+    return True
+
+
+def patched_ready(out):
+    """改写过的游戏程序齐了、而且是这份源码的改写器出的：产物记下的改写器指纹（patch_nso.py 写的 build_src.sha256）要等于这份 patch_nso.py。
+    改写器更新时产物代号不一定变（v2.3.0 → v2.3.1 就是这样，代号一直是 r45），只看文件在不在，复用同一个工作目录的人（S2Arm 每次导出都这样）
+    会一直拿着旧改写器出的程序做包。与 d2rm_android.py 的判法相同
+    | The rewritten game program is complete and was made by this source's rewriter: the rewriter fingerprint the products record (build_src.sha256,
+    written by patch_nso.py) must equal this patch_nso.py. The product code does not always change when the rewriter does (v2.3.0 -> v2.3.1 kept r45),
+    so with only a presence check anyone reusing a work directory (S2Arm does on every export) would keep packing the program an older rewriter made.
+    Same rule as d2rm_android.py"""
+    src = hashlib.sha256(open(os.path.join(HERE, 'patch_nso.py'), 'rb').read()).hexdigest()
+    try: rec = open(os.path.join(out, 'build_src.sha256')).read().split()[0]
+    except (OSError, IndexError): return False
+    return rec == src and all(os.path.isfile(os.path.join(out, m + '.patched.bin')) and os.path.isfile(os.path.join(out, m + '.gates.tsv')) for m in MODS)
+
+
 # 手机上要的游戏资源档案：与宿主 host/romfs_validate.c 的 need[] 同一份（dm/tools/tests/test_s2arm_pack.py 核两处一致）
 # The game resource archives the phone needs: the same list as need[] in host/romfs_validate.c (dm/tools/tests/test_s2arm_pack.py checks the two agree)
 PHONE_ARCHIVES = ['00-00000001.data', '00-00000002.data', '00-00000003.data', '00-00000004.data', '00-00000005.data', '00-00000006.data',
@@ -258,7 +298,7 @@ def main():
     out = os.path.join(ROOT, 'build', 'cache', 'dm', 'out', P + '-touch'); os.makedirs(out, exist_ok=True)
     def patch():
         for m in MODS: run([PY, os.path.join(HERE, 'patch_nso.py'), os.path.join(game, 'ExeFS', m), out, m], env={'DM_RULESET': 'touch-run-v4'}, log=os.path.join(out, m + '.patch.log'), what='改写 ' + m)
-    step('改写游戏程序', lambda: all(os.path.isfile(os.path.join(out, m + '.patched.bin')) and os.path.isfile(os.path.join(out, m + '.gates.tsv')) for m in MODS), patch)
+    step('改写游戏程序', lambda: patched_ready(out), patch)
 
     # 二、界面素材与几张数据表（与 ios/run.sh build 开头相同）
     # 2. UI assets and a few data tables (same as the beginning of ios/run.sh build)
@@ -306,7 +346,7 @@ def main():
             if p: run([PY, os.path.join(HERE, 'dmx.py'), 'get', p, os.path.join(packs, os.path.basename(p))], env=e, what='取着色器包 ' + p)
     step('取着色器包（162 个）', lambda: os.path.isdir(packs) and len(os.listdir(packs)) == 162, get_packs)
     xl = os.path.join(ROOT, 'build', 'gfx', 'dmsh_xlate')
-    step('编译着色器翻译工具', lambda: os.path.isfile(os.path.join(xl, 'dmsh_xlate')) or os.path.isfile(os.path.join(xl, 'dmsh_xlate.exe')),
+    step('编译着色器翻译工具', lambda: xlate_ready(xl, z),
          lambda: place_xlate(xl, z) or run([dotnet, 'publish', os.path.join(GT, 'dmsh_xlate'), '-c', 'Release', '-o', xl, '-v', 'quiet'], what='编译着色器翻译工具'))
     chk = lambda: subprocess.run(gt('dmsh_chain.py', '--check-tools'), env=dict(os.environ, DM_ROOT=ROOT, PYTHONUTF8='1'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     if not chk():   # 本机工具与仓库登记的不同是正常的：按本机工具重新登记（会改写仓库里三个随工具变的文件，不要提交它们） | it is normal for the local tools to differ from what the repository registers: re-register by the local tools (this rewrites the three tool-dependent files in the repository; do not commit them)

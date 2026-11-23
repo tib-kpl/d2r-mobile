@@ -2173,6 +2173,18 @@ bool inline_rewrite(std::vector<uint32_t> &words,const std::string &key){
 #endif
     return false;
 }
+// 内联与 quad 改写的先后：片元阶段支持子组时先内联再改写（原来的顺序）。不支持时片元着色器先做 quad 改写和清理再内联：
+// 先内联的话 shuffle 进了入口函数、落在分叉的控制流里，quad 改写一个也换不掉，载入时的能力检查照样中止（Adreno 650 实测，
+// gfx-inline=1 时）。两个载入路径用同一个顺序，预热交出去的模块才和这里自己改写的一样。返回是否内联了。
+// The order of inlining and the quad rewrite: with fragment-stage subgroups, inline first and then rewrite (the order so far).
+// Without them, fragment shaders get the quad rewrite and clean-up before the inlining: inlined first, the shuffles land in
+// the entry function under divergent control flow, the quad rewrite replaces none of them, and the capability check at load
+// still aborts (seen on an Adreno 650 with gfx-inline=1). Both loaders use the same order, so the modules the warm-up hands
+// over match what this loader rewrites itself. Returns whether the shader was inlined.
+bool front_rewrites(std::vector<uint32_t> &words,uint32_t stage,const std::string &key,const char *loader){
+    if(!fragment_subgroups){quad_rewrite(words,stage,key.c_str(),loader);return inline_rewrite(words,key);}
+    bool inlined=inline_rewrite(words,key);quad_rewrite(words,stage,key.c_str(),loader);return inlined;
+}
 // Diagnostic (files/dm/spv-override/<key>.spv): this SPIR-V replaces the bundle's, for offline-optimized test modules.
 bool spv_override(const std::string &key,std::vector<uint32_t> &words){
     std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');std::string path=(cut==std::string::npos?dir:dir.substr(0,cut))+"/spv-override/"+key+".spv";
@@ -2198,8 +2210,10 @@ Shader *load_shader(const void *control){
     // 预热线程取来的已经内联过（load_module 同一步）；只有自己改写时才内联，免得在图形线程上重做一遍（大着色器 40–90 ms）。
     // What the warm-up hands over is already inlined (the same step in load_module); inline only when rewriting here, so the
     // graphics thread does not redo it (40-90 ms on the large shaders).
-    bool inlined=have_reused && shader_reuse!=2 && inline_helpers && helper_has_subgroup(words);
-    if(!have_reused || shader_reuse==2){inlined=inline_rewrite(words,key);quad_rewrite(words,h.stage,key.c_str(),"runtime");warp_rewrite(words,h.stage,key.c_str(),"runtime");tidy_rewrite(words);guard_rewrite(words,h.stage,key.c_str(),"runtime");
+    // 片元阶段不支持子组时片元着色器先改写、清掉辅助函数，内联已无事可做（front_rewrites）。
+    // Without fragment subgroups a fragment shader is rewritten and its helpers removed first, leaving nothing to inline (front_rewrites).
+    bool inlined=have_reused && shader_reuse!=2 && inline_helpers && (fragment_subgroups || h.stage!=4) && helper_has_subgroup(words);
+    if(!have_reused || shader_reuse==2){inlined=front_rewrites(words,h.stage,key,"runtime");warp_rewrite(words,h.stage,key.c_str(),"runtime");tidy_rewrite(words);guard_rewrite(words,h.stage,key.c_str(),"runtime");
         if(have_reused && reused!=words){++shader_reuse_mismatches;xbg_logf("NVN shader reuse MISMATCH %s stage=%u words=%zu/%zu",key.c_str(),h.stage,reused.size(),words.size());}}
     else words.swap(reused);
     // 能力检查放在改写之后：片元阶段不支持子组的驱动上，改写才去掉 shuffle（#243 #155）。
@@ -2341,7 +2355,7 @@ VkShaderModule load_module(const std::string &key){
     fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);if(n<32 || n>16*1024*1024){fclose(f);return VK_NULL_HANDLE;}std::vector<uint8_t> b(static_cast<size_t>(n));bool ok=fread(b.data(),1,b.size(),f)==b.size();fclose(f);if(!ok)return VK_NULL_HANDLE;
     xbg_shader_header h;memcpy(&h,b.data(),sizeof(h));if(h.magic!=0x31534758 || h.version!=1 || h.spirv_bytes%4)return VK_NULL_HANDLE;
     size_t off=sizeof(h)+size_t(h.binding_count)*sizeof(xbg_shader_binding)+size_t(h.input_count)*4+h.c1_bytes;if(off+h.spirv_bytes!=b.size())return VK_NULL_HANDLE;
-    std::vector<uint32_t> w(h.spirv_bytes/4);memcpy(w.data(),b.data()+off,h.spirv_bytes);spv_override(key,w);inline_rewrite(w,key);quad_rewrite(w,h.stage,key.c_str(),"warm");warp_rewrite(w,h.stage,key.c_str(),"warm");tidy_rewrite(w);guard_rewrite(w,h.stage,key.c_str(),"warm");
+    std::vector<uint32_t> w(h.spirv_bytes/4);memcpy(w.data(),b.data()+off,h.spirv_bytes);spv_override(key,w);front_rewrites(w,h.stage,key,"warm");warp_rewrite(w,h.stage,key.c_str(),"warm");tidy_rewrite(w);guard_rewrite(w,h.stage,key.c_str(),"warm");
     if(keep_rewritten){std::lock_guard<std::mutex> l(mu);rewritten.emplace(key,w);}
     VkShaderModuleCreateInfo ci{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};ci.codeSize=w.size()*4;ci.pCode=w.data();VkShaderModule m;if(vkCreateShaderModule(cfg.device,&ci,nullptr,&m)!=VK_SUCCESS)return VK_NULL_HANDLE;
     std::lock_guard<std::mutex> l(mu);auto ins=modules.emplace(key,m);if(!ins.second){vkDestroyShaderModule(cfg.device,m,nullptr);return ins.first->second;}return m;
@@ -2502,7 +2516,7 @@ void pstat_log(VkPipeline pl){
 // DM_GFX_PIPE_CRASH_TEST=<key>: the process exits on the spot when a pipeline holding that shader key is about to be built (_exit:
 // the in-flight marker stays, as after a death in the driver, and no crash dump is left)
 namespace pipeguard{
-std::mutex mu,serial;std::unordered_set<std::string> skip,told,proven;bool loaded=false,careful=false;std::atomic<int> slots{0};std::string crash_test;
+std::mutex mu,serial;std::unordered_set<std::string> skip,told,proven;bool loaded=false,careful=false,retry_uninlined=false;std::atomic<int> slots{0};std::string crash_test;
 std::string base(){std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');return cut==std::string::npos?dir:dir.substr(0,cut);}
 std::string marker(){thread_local const int slot=slots.fetch_add(1);return base()+"/gfx-pipe-inflight."+std::to_string(slot);}
 // 有阶段认不出键（引擎自己的模块没登记）就返回空串：这条管线不进兜底，免得不同的管线撞成同一个条目。
@@ -2510,9 +2524,14 @@ std::string marker(){thread_local const int slot=slots.fetch_add(1);return base(
 // of the guard, so different pipelines cannot collide into one entry.
 std::string compute_key(const std::string &key){return "c:"+key;}
 std::string graphics_key(const std::vector<std::string> &keys){std::string k="g:";for(size_t i=0;i<keys.size();i++){if(keys[i].empty())return {};if(i)k+='+';k+=keys[i];}return k;}
+// 内联打开时记下的条目在行尾带 " i"。内联打开、而条目是没内联时记的（没有 " i"），读到时作废一次：内联后多半能编
+// （Adreno 6xx 上的 098a126f92bf533a），真还崩就带着 " i" 再记，之后一直跳过，不会每次启动都重试。
+// An entry recorded while inlining was on ends in " i". With inlining on, an entry recorded without it (no " i") is dropped
+// once when read: inlined, the shader most likely builds (098a126f92bf533a on Adreno 6xx); if it still crashes it is recorded
+// again with " i" and skipped from then on, so it is not retried on every boot.
 void record_locked(const std::string &key,const char *why){
     if(!skip.insert(key).second)return;
-    if(FILE *f=fopen((base()+"/gfx-pipe-skip").c_str(),"ab")){fprintf(f,"%s\n",key.c_str());fclose(f);}
+    if(FILE *f=fopen((base()+"/gfx-pipe-skip").c_str(),"ab")){fprintf(f,"%s%s\n",key.c_str(),inline_helpers?" i":"");fclose(f);}
     xbg_logf("NVN pipeline %s %s; it is skipped from now on (gfx-pipe-skip)",key.c_str(),why);
 }
 void record(const std::string &key,const char *why){if(key.empty())return;std::lock_guard<std::mutex> l(mu);record_locked(key,why);}
@@ -2522,9 +2541,15 @@ std::vector<std::string> lines(const std::string &path){std::vector<std::string>
 // Called while the engine initializes, before the warm-up threads build anything: from then on the markers are this boot's.
 void load(){
     std::lock_guard<std::mutex> l(mu);if(loaded)return;loaded=true;const std::string b=base();
-    size_t stale=0;for(auto &k:lines(b+"/gfx-pipe-skip")){if(!k.compare(0,2,"c:") || !k.compare(0,2,"g:"))skip.insert(k);else ++stale;}
-    if(stale){std::string keep;for(auto &k:skip)keep+=k+"\n";if(FILE *f=fopen((b+"/gfx-pipe-skip").c_str(),"wb")){fputs(keep.c_str(),f);fclose(f);}
-        xbg_logf("NVN pipelines skipped by an older version dropped=%zu (gfx-pipe-skip)",stale);}
+    size_t stale=0,retry=0;std::string kept;
+    for(auto &line:lines(b+"/gfx-pipe-skip")){
+        if(line.compare(0,2,"c:") && line.compare(0,2,"g:")){++stale;continue;}
+        const size_t sp=line.find(' ');const std::string k=line.substr(0,sp);const bool inlined=sp!=std::string::npos && line.compare(sp,2," i")==0;
+        if(retry_uninlined && !inlined){++retry;xbg_logf("NVN pipeline %s was skipped without inlining; retried with inlining (gfx-pipe-skip)",k.c_str());continue;}
+        if(skip.insert(k).second)kept+=line+"\n";
+    }
+    if(stale || retry){if(FILE *f=fopen((b+"/gfx-pipe-skip").c_str(),"wb")){fputs(kept.c_str(),f);fclose(f);}
+        if(stale)xbg_logf("NVN pipelines skipped by an older version dropped=%zu (gfx-pipe-skip)",stale);}
     std::unordered_set<std::string> now;
     if(DIR *d=opendir(b.c_str())){while(dirent *e=readdir(d))if(!strncmp(e->d_name,"gfx-pipe-inflight",17)){const std::string path=b+"/"+e->d_name;for(auto &k:lines(path))if(!k.compare(0,2,"c:") || !k.compare(0,2,"g:"))now.insert(k);remove(path.c_str());}closedir(d);}
     const std::string suspect=b+"/gfx-pipe-suspect";std::unordered_set<std::string> before;for(auto &k:lines(suspect))before.insert(k);
@@ -4233,8 +4258,8 @@ extern "C" int xbg_game_initialize(const xbg_game_config *c,char *error,size_t b
     VkCommandPoolCreateInfo cp{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};cp.queueFamilyIndex=cfg.queue_family;cp.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;VkResult r=vkCreateCommandPool(cfg.device,&cp,nullptr,&command_pool);if(r!=VK_SUCCESS){if(error&&bytes)snprintf(error,bytes,"vkCreateCommandPool=%d",r);return r;}
     VkPipelineCacheCreateInfo cache{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};std::vector<uint8_t> cache_data=load_pipeline_cache();cache.initialDataSize=cache_data.size();cache.pInitialData=cache_data.empty()?nullptr:cache_data.data();r=vkCreatePipelineCache(cfg.device,&cache,nullptr,&pipeline_cache);if(r!=VK_SUCCESS){vkDestroyCommandPool(cfg.device,command_pool,nullptr);command_pool=VK_NULL_HANDLE;if(error&&bytes)snprintf(error,bytes,"vkCreatePipelineCache=%d",r);return r;}
     {std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');std::string base=cut==std::string::npos?dir:dir.substr(0,cut);
-     const bool rewrites_fault=xbg_adreno_rewrites_fault(properties.vendorID,properties.deviceName);
-     if(rewrites_fault)xbg_logf("NVN Adreno 740/750 (device \"%s\"): the quad-derivative and warp32 rewrites default off; a marker file still turns either on",properties.deviceName);
+     const bool rewrites_fault=xbg_adreno_rewrites_fault(properties.vendorID,properties.deviceName,properties.deviceID);
+     if(rewrites_fault)xbg_logf("NVN Adreno 720 / 740-799 (device \"%s\" id=%#x): the quad-derivative and warp32 rewrites default off; a marker file still turns either on",properties.deviceName,properties.deviceID);
      auto sw=[&](const char *marker,const char *env){FILE *q=fopen((base+marker).c_str(),"rb");const bool present=q!=nullptr;int c=-1;if(q){c=fgetc(q);fclose(q);}return xbg_adreno_rewrite_option(present,c,getenv(env),rewrites_fault);};
      quad_derivatives=sw("/gfx-quad-derivatives","DM_GFX_QUAD_DERIVATIVES");
      {bool pretend=false;FILE *q=fopen((base+"/gfx-no-fragment-subgroups").c_str(),"rb");if(q){pretend=fgetc(q)!='0';fclose(q);}else if(const char *e=getenv("DM_GFX_NO_FRAGMENT_SUBGROUPS"))pretend=atoi(e)!=0;
@@ -4244,13 +4269,17 @@ extern "C" int xbg_game_initialize(const xbg_game_config *c,char *error,size_t b
      warp32=sw("/gfx-warp32","DM_GFX_WARP32");
      xbg_logf("NVN quad shuffles to fine derivatives=%d (marker gfx-quad-derivatives)",int(quad_derivatives));
      xbg_logf("NVN 32-lane warps in wider subgroups=%d subgroup=%u (marker gfx-warp32)",int(warp32),subgroup.subgroupSize);
-     {FILE *q=fopen((base+"/gfx-inline").c_str(),"rb");if(q){inline_helpers=fgetc(q)!='0';fclose(q);}else inline_helpers=xbg_adreno_compiler_needs_inline(properties.vendorID,properties.deviceName);
+     {FILE *q=fopen((base+"/gfx-inline").c_str(),"rb");const bool marker=q!=nullptr;if(q){inline_helpers=fgetc(q)!='0';fclose(q);}else inline_helpers=xbg_adreno_inline_default(properties.vendorID,properties.deviceName,fragment_subgroups,properties.deviceID);
 #ifndef XBG_HAVE_SPIRV_OPT
       if(inline_helpers)xbg_logf("NVN helper inlining is not built into this package; shaders load as they are");inline_helpers=false;
 #endif
+      // 内联是新打开的（这一版的新缺省机型，或标记文件开的）时，gfx-pipe-skip 里没内联时记的条目重试一次（见 pipeguard）。
+      // When inlining is newly on (a model whose default is new in this version, or the marker file), gfx-pipe-skip entries
+      // recorded without inlining are retried once (see pipeguard).
+      pipeguard::retry_uninlined=inline_helpers && (marker || xbg_adreno_inline_is_new(properties.vendorID,properties.deviceName,properties.deviceID,fragment_subgroups));
       xbg_logf("NVN shaders with subgroup helpers are inlined at load=%d (marker gfx-inline)",int(inline_helpers));}
      {FILE *q=fopen((base+"/gfx-dispatch-guard").c_str(),"rb");const bool present=q!=nullptr;int c=-1;if(q){c=fgetc(q);fclose(q);}
-      dispatch_guard=xbg_adreno_dispatch_guard_option(present,c,getenv("DM_GFX_DISPATCH_GUARD"),xbg_adreno_dispatch_overruns(properties.vendorID,properties.deviceName));
+      dispatch_guard=xbg_adreno_dispatch_guard_option(present,c,getenv("DM_GFX_DISPATCH_GUARD"),xbg_adreno_dispatch_overruns(properties.vendorID,properties.deviceName,properties.deviceID));
       xbg_logf("NVN compute shaders return at once outside the dispatched range=%d (marker gfx-dispatch-guard)",int(dispatch_guard));}}
     {std::string dir=cfg.shader_directory;size_t cut=dir.find_last_of('/');std::string base=cut==std::string::npos?dir:dir.substr(0,cut);
      auto dm=[&](const char *marker,const char *env){FILE *q=fopen((base+marker).c_str(),"rb");bool on=false;if(q){on=fgetc(q)!='0';fclose(q);}else if(const char *e=getenv(env))on=atoi(e)!=0;return on;};
